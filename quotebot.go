@@ -19,11 +19,20 @@ type Quote struct {
 	Text    string
 }
 
-const token string = "filler"
 const qfile string = "./data/quotes.json"
+const tfile string = "./data/token.txt"
 
+var token string
 var qslice []Quote
 var qmap map[string][]string
+
+func getToken() {
+	t, err := ioutil.ReadFile(tfile)
+	if err != nil {
+		fmt.Println("Error reading token")
+	}
+	token = string(t)
+}
 
 func load() {
 	qjson, err := ioutil.ReadFile(qfile)
@@ -123,7 +132,7 @@ func messageCreate(session *discordgo.Session, message *discordgo.MessageCreate)
 					delivery = "Missing Arguments for Add.\nUse command \"!quote add <Name> <Quote>\"."
 					break
 				}
-				nquote := &Quote{Speaker: args[1], Text: strings.Join(args[2:], " ")}
+				nquote := &Quote{Speaker: args[1], Text: strings.Trim(strings.Join(args[2:], " "), `'"`)}
 				add(nquote)
 				delivery = fmt.Sprintf("Added Quote:\n\t%s: \"%s\"", nquote.Speaker, nquote.Text)
 			case "by":
@@ -164,6 +173,7 @@ func guildCreate(session *discordgo.Session, event *discordgo.GuildCreate) {
 
 func main() {
 
+	getToken()
 	load()
 
 	// initialize bot
