@@ -19,7 +19,7 @@ type Quote struct {
 	Text    string
 }
 
-const token string = "NzEwOTQwNDIxMDQzMzg4NDY2.Xr7xdw.ISoV_7xbwSNPVQdaay-fqa7TJlY"
+const token string = "filler"
 const qfile string = "./data/quotes.json"
 
 var qslice []Quote
