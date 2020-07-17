@@ -1,2 +1,2 @@
-# quotebot
-A bot that maintains a list of quotes. 
+# Quotebot X
+New and Improved Quote Management Bot for your Discord Channel
