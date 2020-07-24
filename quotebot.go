@@ -9,6 +9,10 @@ import (
 	"syscall"
 
 	"github.com/bwmarrin/discordgo"
+	// "go.mongodb.org/mongo-driver/mongo"
+	// "go.mongodb.org/mongo-driver/mongo/options"
+	// "go.mongodb.org/mongo-driver/mongo/readpref"
+	// "github.com/DeLucaJ/quotebot/internal/types"
 )
 
 const tfile string = "./data/token.txt"
