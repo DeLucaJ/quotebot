@@ -10,10 +10,13 @@ import (
 	"syscall"
 	"time"
 
+	// "json"
+
 	"github.com/bwmarrin/discordgo"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	// "go.mongodb.org/mongo-driver/mongo/readpref"
+	// "go.mongodb.org/mongo-driver/bson"
 	// "github.com/DeLucaJ/quotebot/internal/types"
 )
 
@@ -29,7 +32,7 @@ func getConfig(file string) string {
 	return string(t)
 }
 
-func panicIfError(err error, message string) {
+func checkError(err error, message string) {
 	if err != nil {
 		fmt.Println(message + err.Error())
 		panic(err)
@@ -58,13 +61,13 @@ func main() {
 
 	// Initialize the Discord Bot
 	ds, err := discordgo.New("Bot " + token)
-	panicIfError(err, "Error creating Discord Session: ")
+	checkError(err, "Error creating Discord Session: ")
 
 	// Define Handlers for discord events.
 
 	// Open Discord session
 	err = ds.Open()
-	panicIfError(err, "Error opening Discord session: ")
+	checkError(err, "Error opening Discord session: ")
 	// Defers a call to Close the Discord Session
 	defer ds.Close()
 
