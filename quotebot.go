@@ -23,20 +23,20 @@ import (
 const tfile string = "./data/token.txt"
 const uri = "mongodb://localhost:27017"
 
-// Retrieves the Bot Token
-func getConfig(file string) string {
-	t, err := ioutil.ReadFile(file)
-	if err != nil {
-		fmt.Println("Error reading token")
-	}
-	return string(t)
-}
-
+// Used for general error checking and panicing
 func checkError(err error, message string) {
 	if err != nil {
 		fmt.Println(message + err.Error())
 		panic(err)
 	}
+}
+
+// Retrieves the Bot Token
+// Will eventually get the JSON configuration for quotebot
+func getConfig(file string) string {
+	t, err := ioutil.ReadFile(file)
+	checkError(err, "Error reading discord token: ")
+	return string(t)
 }
 
 func main() {
@@ -54,9 +54,7 @@ func main() {
 
 	// Defer a disconnect from the database
 	defer func() {
-		if err = client.Disconnect(ctx); err != nil {
-			panic(err)
-		}
+		checkError(client.Disconnect(ctx), "Error disconnecting from mongo client: ")
 	}()
 
 	// Initialize the Discord Bot
