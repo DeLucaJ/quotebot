@@ -1,17 +1,23 @@
 package botdata
 
-import {
+import (
+	"context"
 	"fmt"
+	"log"
+	"time"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	// "go.mongodb.org/mongo-driver/mongo/readpref"
-	// "go.mongodb.org/mongo-driver/bson"
-}
+)
 
 const uri = "mongodb://localhost:27017"
 
+var guildCollection mongo.Collection
+var userCollection mongo.Collection
+var quoteCollection mongo.Collection
+
 func init() {
+
 	fmt.Println("Initializeing Mongo Client")
 
 	// Connect to MongoDB
@@ -36,4 +42,7 @@ func init() {
 	guildCollection := database.Collection("guilds")
 	userCollection := database.Collection("users")
 	quoteCollection := database.Collection("quotes")
+
+	fmt.Println(guildCollection.Name, userCollection.Name, quoteCollection.Name)
+
 }
