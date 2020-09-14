@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,9 +16,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	// "go.mongodb.org/mongo-driver/mongo/readpref"
-	// "go.mongodb.org/mongo-driver/bson"
-	// "github.com/DeLucaJ/quotebot/internal/types"
+	// "github.com/DeLucaJ/quotebot/internal/data"
 )
 
 const tfile string = "./data/token.txt"
@@ -27,7 +26,7 @@ const uri = "mongodb://localhost:27017"
 func checkError(err error, message string) {
 	if err != nil {
 		fmt.Println(message + err.Error())
-		panic(err)
+		log.Fatal(err)
 	}
 }
 
@@ -48,14 +47,18 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel() // Defers the context cancel
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
-	if err != nil {
-
-	}
+	checkError(err, "Error Conecting Mongo Client: ")
 
 	// Defer a disconnect from the database
 	defer func() {
 		checkError(client.Disconnect(ctx), "Error disconnecting from mongo client: ")
 	}()
+
+	// Initialize the Database
+	/* database := client.Database("quotedb")
+	guildCollection := database.Collection("guilds")
+	userCollection := database.Collection("users")
+	quoteCollection := database.Collection("quotes") */
 
 	// Initialize the Discord Bot
 	ds, err := discordgo.New("Bot " + token)
