@@ -12,11 +12,9 @@ import (
 	// "json"
 
 	"github.com/bwmarrin/discordgo"
-	// "github.com/DeLucaJ/quotebot/internal/data"
 )
 
 const tfile string = "./data/token.txt"
-const uri = "mongodb://localhost:27017"
 
 // Used for general error checking and panicing
 func checkError(err error, message string) {

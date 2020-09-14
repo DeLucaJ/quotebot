@@ -9,6 +9,8 @@ import {
 	// "go.mongodb.org/mongo-driver/bson"
 }
 
+const uri = "mongodb://localhost:27017"
+
 func init() {
 	fmt.Println("Initializeing Mongo Client")
 
