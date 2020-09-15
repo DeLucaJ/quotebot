@@ -176,9 +176,10 @@ func (bm Manager) chooseRandomQuote(guildid string) Quote {
 
 	if len(guild.Quotes) > 0 {
 		return bm.findQuote(guild.Quotes[rand.Intn(len(guild.Quotes))])
-	} else {
-		return Quote{}
 	}
+
+	//returns empty quote to be checked
+	return Quote{}
 }
 
 // sends a message with a quote spoken by a specific user
