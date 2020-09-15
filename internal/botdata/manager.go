@@ -86,8 +86,8 @@ func (bm Manager) Shutdown() {
 
 // GuildCreate - Event handler called when the logs on or joins a guild
 func (bm Manager) GuildCreate(session *discordgo.Session, event *discordgo.GuildCreate) {
-	if !bm.guildExists(event.Guild.ID) {
-		bm.insertGuild(*event.Guild)
+	if !bm.GuildExists(*event.Guild) {
+		bm.AddGuild(*event.Guild)
 	}
 	fmt.Println("Login: ", event.Guild.Name)
 }
@@ -101,22 +101,64 @@ func (bm Manager) MessageCreate(session *discordgo.Session, message *discordgo.M
 	// fmt.Println("Recieved a Message: ", message.Content)
 }
 
+// AddGuild - adds a guild to the database
+func (bm Manager) AddGuild(guild discordgo.Guild) {
+	guilddoc := Guild{
+		Date:      primitive.NewDateTimeFromTime(time.Now()),
+		DiscordID: guild.ID,
+		Name:      guild.Name,
+	}
+	bm.insertGuild(guilddoc)
+}
+
+// AddUser - adds a user to the database
+func (bm Manager) AddUser(name string, user discordgo.User, guild discordgo.Guild) {
+	guilddoc := bm.findGuild(bson.M{"discordid": guild.ID})
+
+	userdoc := User{
+		Date:    primitive.NewDateTimeFromTime(time.Now()),
+		Name:    name,
+		UserID:  user.ID,
+		GuildID: guilddoc.ID,
+	}
+
+	bm.insertUser(userdoc)
+}
+
+// AddQuote - adds a qutoe to the database
+func (bm Manager) AddQuote(content string, speaker discordgo.User, submitter discordgo.User, guild discordgo.Guild) {
+	guilddoc := bm.findGuild(bson.M{"discordid": guild.ID})
+	speakerdoc := bm.findUser(bson.M{"discordid": speaker.ID, "guild": guild.ID})
+	submitterdoc := bm.findUser(bson.M{"discordid": speaker.ID, "guild": guild.ID})
+
+	quote := Quote{
+		Date:      primitive.NewDateTimeFromTime(time.Now()),
+		Content:   content,
+		Speaker:   speakerdoc.ID,
+		Submitter: submitterdoc.ID,
+		Guild:     guilddoc.ID,
+	}
+
+	bm.insertQuote(quote)
+}
+
 // ChooseRandomQuote - Chooses a random quote from a specific guild
-func (bm Manager) ChooseRandomQuote(guildid string) Quote {
-	guild := bm.findGuild(bson.M{"discordid": guildid})
-	quotes := bm.findManyQuotes(bson.M{"guild": guild.ID})
+func (bm Manager) ChooseRandomQuote(guild discordgo.Guild) Quote {
+	guilddoc := bm.findGuild(bson.M{"discordid": guild.ID})
+	quotes := bm.findManyQuotes(bson.M{"guild": guilddoc.ID})
 
 	return bm.randomQuote(quotes)
 }
 
 // ChooseRandomQuoteBySpeaker - Chooses a random quote from guild and speaker
-func (bm Manager) ChooseRandomQuoteBySpeaker(speakerid string, guildid string) Quote {
-	guild := bm.findGuild(bson.M{"discordid": guildid})
-	quotes := bm.findManyQuotes(bson.M{"speaker": speakerid, "guild": guild.ID})
+func (bm Manager) ChooseRandomQuoteBySpeaker(speakerid string, guild discordgo.Guild) Quote {
+	guilddoc := bm.findGuild(bson.M{"discordid": guild.ID})
+	quotes := bm.findManyQuotes(bson.M{"speaker": speakerid, "guild": guilddoc.ID})
 
 	return bm.randomQuote(quotes)
 }
 
+// helper for random qutoes
 func (bm Manager) randomQuote(quotes []Quote) Quote {
 	if len(quotes) > 0 {
 		return quotes[rand.Intn(len(quotes))]
@@ -126,9 +168,10 @@ func (bm Manager) randomQuote(quotes []Quote) Quote {
 	return Quote{}
 }
 
-func (bm Manager) guildExists(guildid string) bool {
+// GuildExists - returns true if the user exists, false otherwise
+func (bm Manager) GuildExists(guild discordgo.Guild) bool {
 	var existing Guild
-	err := bm.usercol.FindOne(bm.ctx, bson.M{"discordid": guildid}).Decode(&existing)
+	err := bm.usercol.FindOne(bm.ctx, bson.M{"discordid": guild.ID}).Decode(&existing)
 	if err == mongo.ErrNoDocuments {
 		return false
 	}
@@ -139,9 +182,10 @@ func (bm Manager) guildExists(guildid string) bool {
 	return true
 }
 
-func (bm Manager) userExists(userid string, guildid string) bool {
+// UserExists - returns true if the user exists, false otherwise
+func (bm Manager) UserExists(user discordgo.User, guild discordgo.Guild) bool {
 	var existing User
-	err := bm.usercol.FindOne(bm.ctx, bson.M{"userid": userid, "guild": guildid}).Decode(&existing)
+	err := bm.usercol.FindOne(bm.ctx, bson.M{"userid": user.ID, "guild": guild.ID}).Decode(&existing)
 	if err == mongo.ErrNoDocuments {
 		return false
 	}
@@ -154,75 +198,38 @@ func (bm Manager) userExists(userid string, guildid string) bool {
 
 // adds a Guild to the database
 // move find and construction logic into separate event code or constructor
-func (bm Manager) insertGuild(guild discordgo.Guild) Guild {
-	guildDoc := Guild{
-		Date:      primitive.NewDateTimeFromTime(time.Now()),
-		DiscordID: guild.ID,
-		Name:      guild.Name,
-	}
-
-	result, err := bm.guildcol.InsertOne(bm.ctx, guildDoc)
+func (bm Manager) insertGuild(guild Guild) {
+	result, err := bm.guildcol.InsertOne(bm.ctx, guild)
 	if err != nil {
 		fmt.Println("Error inserting guild: ", err)
 		panic(err)
 	}
 
 	fmt.Println("Guild Add: ", guild.Name, result.InsertedID)
-
-	return guildDoc
 }
 
 // adds a User to the database
 //move find & construction logic into separate event code or constructor
-func (bm Manager) insertUser(user discordgo.User, guild discordgo.Guild) {
-	if bm.userExists(user.ID, guild.ID) {
-		// user in database
-		fmt.Println("User already exists: ", user.Username)
-	} else {
-		// user not in database
-		// find the guild object
-		guildDoc := bm.findGuild(bson.M{"discordid": guild.ID})
-
-		// add the new user
-		userDoc := User{
-			Date:    primitive.NewDateTimeFromTime(time.Now()),
-			GuildID: guildDoc.ID,
-			Name:    user.Username,
-			UserID:  user.ID,
-		}
-
-		// insert document into database
-		result, err := bm.usercol.InsertOne(bm.ctx, userDoc)
-		if err != nil {
-			fmt.Println("Error inserting user: ", err)
-			log.Fatal(err)
-		}
-		fmt.Println("User Added: ", userDoc.Name, result.InsertedID)
+func (bm Manager) insertUser(user User) {
+	// insert document into database
+	result, err := bm.usercol.InsertOne(bm.ctx, user)
+	if err != nil {
+		fmt.Println("Error inserting user: ", err)
+		log.Fatal(err)
 	}
+	fmt.Println("User Added: ", user.Name, result.InsertedID)
 }
 
 // adds a Quote to the database
 // move find calls and construction into the event code or separate constructor
-func (bm Manager) insertQuote(content string, guildid string, speakerid string, submitterid string) {
-	guild := bm.findGuild(bson.M{"discordid": guildid})
-	speaker := bm.findUser(bson.M{"discordid": speakerid, "guild": guild.ID})
-	submitter := bm.findUser(bson.M{"discordid": speakerid, "guild": guild.ID})
-
-	quote := Quote{
-		Date:      primitive.NewDateTimeFromTime(time.Now()),
-		Content:   content,
-		Speaker:   speaker.ID,
-		Submitter: submitter.ID,
-		Guild:     guild.ID,
-	}
-
+func (bm Manager) insertQuote(quote Quote) {
 	//insert quote into DB
 	result, err := bm.quotecol.InsertOne(bm.ctx, quote)
 	if err != nil {
 		fmt.Println("Error inserting quote: ", err)
 		log.Fatal(err)
 	}
-	fmt.Println("Quote Added: ", quote.Content, speaker.Name, result.InsertedID)
+	fmt.Println("Quote Added: ", result.InsertedID)
 }
 
 func (bm Manager) findGuild(query primitive.M) Guild {
