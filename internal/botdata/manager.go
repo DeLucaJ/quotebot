@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -38,9 +40,9 @@ func (bm Manager) Shutdown() {
 	}()
 }
 
-// GuildCreate - Event handler called when the bot joins a Guild
+// GuildCreate - Event handler called when the logs on or joins a guild
 func (bm Manager) GuildCreate(session *discordgo.Session, event *discordgo.GuildCreate) {
-	fmt.Println("Joined a Guild: ", event.Guild.Name)
+	bm.addGuild(*event.Guild)
 }
 
 // MessageCreate - Event handler called when a message is created in a joined Guild
@@ -54,6 +56,34 @@ func (bm Manager) MessageCreate(session *discordgo.Session, message *discordgo.M
 
 // adds a Guild to the database
 func (bm Manager) addGuild(guild discordgo.Guild) {
+	// needs a check for existing guilds
+	var oldGuild Guild
+	err := bm.guildcol.FindOne(bm.ctx, bson.M{"discordid": guild.ID}).Decode(&oldGuild)
+	if err == mongo.ErrNoDocuments {
+		// add the guild to the database
+		ng := Guild{
+			Date:      primitive.NewDateTimeFromTime(time.Now()),
+			DiscordID: guild.ID,
+			Name:      guild.Name,
+		}
+
+		result, err := bm.guildcol.InsertOne(bm.ctx, ng)
+		if err != nil {
+			fmt.Println("Error inserting guild: ", err)
+			panic(err)
+		}
+
+		fmt.Print("Login: ", ng.Name, result.InsertedID)
+		fmt.Println(" (NEW)")
+		return
+
+	} else if err != nil {
+		fmt.Println("Error searching for existing guild: ", err)
+		log.Fatal(err)
+	} else {
+		// guild exists
+		fmt.Println("Login: ", oldGuild.Name, oldGuild.ID)
+	}
 
 }
 
@@ -71,11 +101,6 @@ func (bm Manager) addQuote(message discordgo.Message) {
 func (bm Manager) getRandomQuote() {
 
 }
-
-// LOW PRIORITY sends a message with the specific quote by its ID
-/* func (bm Manager) getQuoteByID() {
-
-} */
 
 // sends a message with a quote spoken by a specific user
 func (bm Manager) getQuoteByUser() {
