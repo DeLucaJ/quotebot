@@ -2,6 +2,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -9,12 +10,16 @@ import (
 	"os/signal"
 	"syscall"
 
-	// "json"
-
+	"github.com/DeLucaJ/quotebot/internal/botdata"
 	"github.com/bwmarrin/discordgo"
 )
 
-const tfile string = "./data/token.txt"
+const configfile string = "./config.json"
+
+type config struct {
+	Token string
+	DBuri string
+}
 
 // Used for general error checking and panicing
 func checkError(err error, message string) {
@@ -26,19 +31,32 @@ func checkError(err error, message string) {
 
 // Retrieves the Bot Token
 // Will eventually get the JSON configuration for quotebot
-func getConfig(file string) string {
-	t, err := ioutil.ReadFile(file)
+func getConfig(file string) config {
+	// read the fildata of configfile
+	filedata, err := ioutil.ReadFile(file)
 	checkError(err, "Error reading discord token: ")
-	return string(t)
+
+	//turn config.json into a config struct
+	var configuration config
+	err = json.Unmarshal(filedata, &configuration)
+	if err != nil {
+		fmt.Println("Error unmarshalling json: ", err)
+	}
+
+	return configuration
 }
 
 func main() {
+	// Store the application configuration
+	botconfig := getConfig(configfile)
 
-	// Store the application token
-	var token string = getConfig(tfile)
+	// Starts the data manager for the bot
+	dataManager := botdata.Start(botconfig.DBuri)
+	// defers the graceful shutdown of the data manager
+	defer dataManager.Shutdown()
 
 	// Initialize the Discord Bot
-	ds, err := discordgo.New("Bot " + token)
+	ds, err := discordgo.New("Bot " + botconfig.Token)
 	checkError(err, "Error creating Discord Session: ")
 
 	// Define Handlers for discord events.
@@ -49,11 +67,11 @@ func main() {
 	// Defers a call to Close the Discord Session
 	defer ds.Close()
 
+	// Start Message
+	fmt.Println("Welcome to Quotebot X. Press CTRL+C to exit.")
+
 	// Creates Signal Interupt Channels
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	<-sc
-
-	// Start Message
-	fmt.Println("Welcome to Quotebot X. Press CTRL+C to exit.")
 }
