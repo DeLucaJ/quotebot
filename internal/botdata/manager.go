@@ -52,6 +52,56 @@ func (bm Manager) MessageCreate(session *discordgo.Session, message *discordgo.M
 	fmt.Println("Recieved a Message: ", message.Content)
 }
 
+// adds a Guild to the database
+func (bm Manager) addGuild(guild discordgo.Guild) {
+
+}
+
+// adds a User to the database
+func (bm Manager) addUser(user discordgo.User, guild discordgo.Guild) {
+
+}
+
+// adds a Quote to the database
+func (bm Manager) addQuote(message discordgo.Message) {
+
+}
+
+// sends a message with a random Quote from the database
+func (bm Manager) getRandomQuote() {
+
+}
+
+// LOW PRIORITY sends a message with the specific quote by its ID
+/* func (bm Manager) getQuoteByID() {
+
+} */
+
+// sends a message with a quote spoken by a specific user
+func (bm Manager) getQuoteByUser() {
+
+}
+
+// sends a message with every quote spoken by a specific user
+func (bm Manager) getAllQuotesByUser() {
+
+}
+
+// flags a quote for inspection by administrator
+func (bm Manager) flagQutoe() {
+
+}
+
+// sets a different alias for a user in the database
+func (bm Manager) renameUser() {
+
+}
+
+// converts all quotes by an unassociated user to this user
+func (bm Manager) claimUser() {
+
+}
+
 // Start - Starts the boss and initializes the database connection
 // 	uri string: the uri for the database from config.json
 func Start(uri string) Manager {
