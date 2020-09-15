@@ -59,7 +59,15 @@ func main() {
 	ds, err := discordgo.New("Bot " + botconfig.Token)
 	checkError(err, "Error creating Discord Session: ")
 
+	// EVENT HANDLING ---------------------------------------------------------
 	// Define Handlers for discord events.
+	messageCreate := dataManager.MessageCreate
+	guildCreate := dataManager.GuildCreate
+
+	// Attach Handlers to the discord session
+	ds.AddHandler(messageCreate)
+	ds.AddHandler(guildCreate)
+	//-------------------------------------------------------------------------
 
 	// Open Discord session
 	err = ds.Open()

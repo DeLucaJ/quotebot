@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/bwmarrin/discordgo"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -35,6 +36,20 @@ func (bm Manager) Shutdown() {
 			log.Fatal(err)
 		}
 	}()
+}
+
+// GuildCreate - Event handler called when the bot joins a Guild
+func (bm Manager) GuildCreate(session *discordgo.Session, event *discordgo.GuildCreate) {
+	fmt.Println("Joined a Guild: ", event.Guild.Name)
+}
+
+// MessageCreate - Event handler called when a message is created in a joined Guild
+func (bm Manager) MessageCreate(session *discordgo.Session, message *discordgo.MessageCreate) {
+	// Check to see if the author is this bot
+	if message.Author.ID == session.State.User.ID {
+		return
+	}
+	fmt.Println("Recieved a Message: ", message.Content)
 }
 
 // Start - Starts the boss and initializes the database connection
