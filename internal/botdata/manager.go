@@ -85,6 +85,7 @@ func (bm Manager) userExists(userid string, guildid string) bool {
 }
 
 // adds a Guild to the database
+// move find and construction logic into separate event code or constructor
 func (bm Manager) insertGuild(guild discordgo.Guild) Guild {
 	guildDoc := Guild{
 		Date:      primitive.NewDateTimeFromTime(time.Now()),
@@ -104,6 +105,7 @@ func (bm Manager) insertGuild(guild discordgo.Guild) Guild {
 }
 
 // adds a User to the database
+//move find & construction logic into separate event code or constructor
 func (bm Manager) insertUser(user discordgo.User, guild discordgo.Guild) {
 	if bm.userExists(user.ID, guild.ID) {
 		// user in database
@@ -111,7 +113,7 @@ func (bm Manager) insertUser(user discordgo.User, guild discordgo.Guild) {
 	} else {
 		// user not in database
 		// find the guild object
-		guildDoc := bm.findGuild(guild.ID)
+		guildDoc := bm.findGuild(bson.M{"discordid": guild.ID})
 
 		// add the new user
 		userDoc := User{
@@ -125,20 +127,39 @@ func (bm Manager) insertUser(user discordgo.User, guild discordgo.Guild) {
 		result, err := bm.usercol.InsertOne(bm.ctx, userDoc)
 		if err != nil {
 			fmt.Println("Error inserting user: ", err)
-			panic(err)
+			log.Fatal(err)
 		}
 		fmt.Println("User Added: ", userDoc.Name, result.InsertedID)
 	}
 }
 
 // adds a Quote to the database
-func (bm Manager) insertQuote(message discordgo.Message) {
+// move find calls and construction into the event code or separate constructor
+func (bm Manager) insertQuote(content string, guildid string, speakerid string, submitterid string) {
+	guild := bm.findGuild(bson.M{"discordid": guildid})
+	speaker := bm.findUser(bson.M{"discordid": speakerid, "guild": guild.ID})
+	submitter := bm.findUser(bson.M{"discordid": speakerid, "guild": guild.ID})
 
+	quote := Quote{
+		Date:      primitive.NewDateTimeFromTime(time.Now()),
+		Content:   content,
+		Speaker:   speaker.ID,
+		Submitter: submitter.ID,
+		Guild:     guild.ID,
+	}
+
+	//insert quote into DB
+	result, err := bm.quotecol.InsertOne(bm.ctx, quote)
+	if err != nil {
+		fmt.Println("Error inserting quote: ", err)
+		log.Fatal(err)
+	}
+	fmt.Println("Quote Added: ", quote.Content, speaker.Name, result.InsertedID)
 }
 
-func (bm Manager) findGuild(guildid string) Guild {
+func (bm Manager) findGuild(query primitive.M) Guild {
 	var guild Guild
-	err := bm.guildcol.FindOne(bm.ctx, bson.M{"discordid": guildid}).Decode(&guild)
+	err := bm.guildcol.FindOne(bm.ctx, query).Decode(&guild)
 	if err != nil {
 		fmt.Println("Error retrieving guild: ", err)
 		log.Fatal(err)
@@ -146,12 +167,26 @@ func (bm Manager) findGuild(guildid string) Guild {
 	return guild
 }
 
-func (bm Manager) findUser(userid string, guildid string) User {
-	// retrieve guild data
-	guild := bm.findGuild(guildid)
+func (bm Manager) findManyGuilds(query primitive.M) []Guild {
+	var guilds []Guild
 
+	cursor, err := bm.quotecol.Find(bm.ctx, query)
+	if err != nil {
+		fmt.Println("Error finding qutoes: ", err)
+		log.Fatal(err)
+	}
+	if err = cursor.All(bm.ctx, &guilds); err != nil {
+		fmt.Println("Err converting cursor to quote slice: ", err)
+		log.Fatal(err)
+	}
+
+	return guilds
+}
+
+func (bm Manager) findUser(query primitive.M) User {
+	// bson.M{"userid": userid, "guildid": guild}
 	var user User
-	err := bm.usercol.FindOne(bm.ctx, bson.M{"userid": userid, "guildid": guild.ID}).Decode(&user)
+	err := bm.usercol.FindOne(bm.ctx, query).Decode(&user)
 	if err != nil {
 		fmt.Println("Error retrieving user: ", err)
 		log.Fatal(err)
@@ -159,10 +194,27 @@ func (bm Manager) findUser(userid string, guildid string) User {
 	return user
 }
 
-func (bm Manager) findQuote(quoteref primitive.ObjectID) Quote {
+func (bm Manager) findManyUsers(query primitive.M) []User {
+	var users []User
+
+	cursor, err := bm.usercol.Find(bm.ctx, query)
+	if err != nil {
+		fmt.Println("Error finding qutoes: ", err)
+		log.Fatal(err)
+	}
+	if err = cursor.All(bm.ctx, &users); err != nil {
+		fmt.Println("Err converting cursor to quote slice: ", err)
+		log.Fatal(err)
+	}
+
+	return users
+}
+
+func (bm Manager) findQuote(query primitive.ObjectID) Quote {
+	// bson.M{"_id": quoteref}
 	var quote Quote
 
-	err := bm.quotecol.FindOne(bm.ctx, bson.M{"_id": quoteref}).Decode(&quote)
+	err := bm.quotecol.FindOne(bm.ctx, query).Decode(&quote)
 	if err != nil {
 		fmt.Println("Error retrieving quote: ", err)
 		log.Fatal(err)
@@ -170,27 +222,53 @@ func (bm Manager) findQuote(quoteref primitive.ObjectID) Quote {
 	return quote
 }
 
-// sends a message with a random Quote from the database
-func (bm Manager) chooseRandomQuote(guildid string) Quote {
-	guild := bm.findGuild(guildid)
+func (bm Manager) findManyQuotes(query primitive.M) []Quote {
+	var quotes []Quote
 
-	if len(guild.Quotes) > 0 {
-		return bm.findQuote(guild.Quotes[rand.Intn(len(guild.Quotes))])
+	cursor, err := bm.quotecol.Find(bm.ctx, query)
+	if err != nil {
+		fmt.Println("Error finding qutoes: ", err)
+		log.Fatal(err)
+	}
+	if err = cursor.All(bm.ctx, &quotes); err != nil {
+		fmt.Println("Err converting cursor to quote slice: ", err)
+		log.Fatal(err)
+	}
+
+	return quotes
+}
+
+func (bm Manager) chooseRandomQuote(guild primitive.ObjectID) Quote {
+	quotes := bm.findManyQuotes(bson.M{"guild": guild})
+
+	if len(quotes) > 0 {
+		return quotes[rand.Intn(len(quotes))]
 	}
 
 	//returns empty quote to be checked
 	return Quote{}
 }
 
-// sends a message with a quote spoken by a specific user
-func (bm Manager) choosetQuoteByUser() {
-
+// just put the query in the individual case?
+/* // sends a message with a random Quote from the database
+func (bm Manager) chooseRandomQuote(guild primitive.ObjectID) Quote {
+	return bm.chooseQuote(bson.M{"guild": guild})
 }
+
+// sends a message with a quote spoken by a specific user
+func (bm Manager) choosetQuoteBySpeaker(speaker primitive.ObjectID, guild primitive.ObjectID) Quote {
+	return bm.chooseQuote(bson.M{"speaker": speaker, "guild": guild})
+}
+
+func (bm Manager) chooseQuoteBySubmitter(submitter primitive.ObjectID, guild primitive.ObjectID) Quote {
+	return bm.chooseQuote(bson.M{"submitter": submitter, "guild": guild})
+} */
 
 // sends a message with every quote spoken by a specific user
-func (bm Manager) chooseAllQuotesByUser() {
+// query
+/* func (bm Manager) chooseAllQuotesByUser() {
 
-}
+} */
 
 // flags a quote for inspection by administrator
 func (bm Manager) flagQutoe() {
