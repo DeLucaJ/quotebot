@@ -1,4 +1,4 @@
-// Quotebot X
+// Quotebot X by Joseph DeLuca
 package main
 
 import (
@@ -14,8 +14,10 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+// location of configuration file
 const configfile string = "./config.json"
 
+// internal struct for configuration management
 type config struct {
 	Token string
 	DBuri string
@@ -47,6 +49,7 @@ func getConfig(file string) config {
 }
 
 func main() {
+	// INITIALIZATION ---------------------------------------------------------
 	// Store the application configuration
 	botconfig := getConfig(configfile)
 
@@ -67,8 +70,8 @@ func main() {
 	// Attach Handlers to the discord session
 	ds.AddHandler(messageCreate)
 	ds.AddHandler(guildCreate)
-	//-------------------------------------------------------------------------
 
+	// START SESSION ----------------------------------------------------------
 	// Open Discord session
 	err = ds.Open()
 	checkError(err, "Error opening Discord session: ")
