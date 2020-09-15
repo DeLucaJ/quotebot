@@ -25,6 +25,49 @@ type Manager struct {
 	quotecol *mongo.Collection
 }
 
+// Start - Starts the boss and initializes the database connection
+// 	uri string: the uri for the database from config.json
+func Start(uri string) Manager {
+	fmt.Println("Initializeing Mongo Client")
+
+	// Connect to MongoDB
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// defer cancel() // Defers the context cancel
+
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
+	if err != nil {
+		// defers closing functions after error
+		defer cancel()
+		defer func() {
+			err := client.Disconnect(ctx)
+			if err != nil {
+				fmt.Println("Error disconnecting from mongo client: " + err.Error())
+				log.Fatal(err)
+			}
+		}()
+
+		fmt.Println("Error connecting to mongo client: " + err.Error())
+		log.Fatal(err)
+	}
+
+	// Initialize the Database
+	db := client.Database("quotebotx")
+	gc := db.Collection("guilds")
+	uc := db.Collection("users")
+	qc := db.Collection("quotes")
+
+	// initializes the singleton botmanager
+	return Manager{
+		client:   client,
+		ctx:      ctx,
+		cancel:   cancel,
+		database: db,
+		guildcol: gc,
+		usercol:  uc,
+		quotecol: qc,
+	}
+}
+
 // Shutdown - Ends the connection to the database and cleans the context
 func (bm Manager) Shutdown() {
 	cancel := bm.cancel
@@ -56,6 +99,31 @@ func (bm Manager) MessageCreate(session *discordgo.Session, message *discordgo.M
 		return
 	}
 	// fmt.Println("Recieved a Message: ", message.Content)
+}
+
+// ChooseRandomQuote - Chooses a random quote from a specific guild
+func (bm Manager) ChooseRandomQuote(guildid string) Quote {
+	guild := bm.findGuild(bson.M{"discordid": guildid})
+	quotes := bm.findManyQuotes(bson.M{"guild": guild.ID})
+
+	return bm.randomQuote(quotes)
+}
+
+// ChooseRandomQuoteBySpeaker - Chooses a random quote from guild and speaker
+func (bm Manager) ChooseRandomQuoteBySpeaker(speakerid string, guildid string) Quote {
+	guild := bm.findGuild(bson.M{"discordid": guildid})
+	quotes := bm.findManyQuotes(bson.M{"speaker": speakerid, "guild": guild.ID})
+
+	return bm.randomQuote(quotes)
+}
+
+func (bm Manager) randomQuote(quotes []Quote) Quote {
+	if len(quotes) > 0 {
+		return quotes[rand.Intn(len(quotes))]
+	}
+
+	//returns empty quote to be checked
+	return Quote{}
 }
 
 func (bm Manager) guildExists(guildid string) bool {
@@ -238,39 +306,7 @@ func (bm Manager) findManyQuotes(query primitive.M) []Quote {
 	return quotes
 }
 
-func (bm Manager) chooseRandomQuote(guild primitive.ObjectID) Quote {
-	quotes := bm.findManyQuotes(bson.M{"guild": guild})
-
-	if len(quotes) > 0 {
-		return quotes[rand.Intn(len(quotes))]
-	}
-
-	//returns empty quote to be checked
-	return Quote{}
-}
-
-// just put the query in the individual case?
-/* // sends a message with a random Quote from the database
-func (bm Manager) chooseRandomQuote(guild primitive.ObjectID) Quote {
-	return bm.chooseQuote(bson.M{"guild": guild})
-}
-
-// sends a message with a quote spoken by a specific user
-func (bm Manager) choosetQuoteBySpeaker(speaker primitive.ObjectID, guild primitive.ObjectID) Quote {
-	return bm.chooseQuote(bson.M{"speaker": speaker, "guild": guild})
-}
-
-func (bm Manager) chooseQuoteBySubmitter(submitter primitive.ObjectID, guild primitive.ObjectID) Quote {
-	return bm.chooseQuote(bson.M{"submitter": submitter, "guild": guild})
-} */
-
-// sends a message with every quote spoken by a specific user
-// query
-/* func (bm Manager) chooseAllQuotesByUser() {
-
-} */
-
-// flags a quote for inspection by administrator
+/* // flags a quote for inspection by administrator
 func (bm Manager) flagQutoe() {
 
 }
@@ -283,47 +319,4 @@ func (bm Manager) renameUser() {
 // converts all quotes by an unassociated user to this user
 func (bm Manager) claimUser() {
 
-}
-
-// Start - Starts the boss and initializes the database connection
-// 	uri string: the uri for the database from config.json
-func Start(uri string) Manager {
-	fmt.Println("Initializeing Mongo Client")
-
-	// Connect to MongoDB
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	// defer cancel() // Defers the context cancel
-
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
-	if err != nil {
-		// defers closing functions after error
-		defer cancel()
-		defer func() {
-			err := client.Disconnect(ctx)
-			if err != nil {
-				fmt.Println("Error disconnecting from mongo client: " + err.Error())
-				log.Fatal(err)
-			}
-		}()
-
-		fmt.Println("Error connecting to mongo client: " + err.Error())
-		log.Fatal(err)
-	}
-
-	// Initialize the Database
-	db := client.Database("quotebotx")
-	gc := db.Collection("guilds")
-	uc := db.Collection("users")
-	qc := db.Collection("quotes")
-
-	// initializes the singleton botmanager
-	return Manager{
-		client:   client,
-		ctx:      ctx,
-		cancel:   cancel,
-		database: db,
-		guildcol: gc,
-		usercol:  uc,
-		quotecol: qc,
-	}
-}
+} */
