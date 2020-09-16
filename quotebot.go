@@ -48,12 +48,27 @@ func getConfig(file string) config {
 	return configuration
 }
 
+func ready(session *discordgo.Session, event *discordgo.Ready) {
+	session.UpdateStatus(0, "q!")
+}
+
 func guildCreateEvent(bm botdata.Manager) func(*discordgo.Session, *discordgo.GuildCreate) {
 	return func(session *discordgo.Session, event *discordgo.GuildCreate) {
+		if event.Guild.Unavailable {
+			return
+		}
+
 		if !bm.GuildExists(*event.Guild) {
 			bm.AddGuild(*event.Guild)
 		}
 		fmt.Println("Login: ", event.Guild.Name)
+
+		for _, channel := range event.Guild.Channels {
+			if channel.ID == event.Guild.ID {
+				_, _ = session.ChannelMessageSend(channel.ID, "QuoteBot is ready! Type !quote")
+				return
+			}
+		}
 	}
 }
 
@@ -63,7 +78,14 @@ func messageCreateEvent(bm botdata.Manager) func(*discordgo.Session, *discordgo.
 		if message.Author.ID == session.State.User.ID {
 			return
 		}
-		// fmt.Println("Recieved a Message: ", message.Content)
+
+		// check if its a command
+
+		// parse arguments
+
+		// construct result
+
+		// send message
 	}
 }
 
@@ -87,6 +109,7 @@ func main() {
 	guildCreate := guildCreateEvent(botManager)
 
 	// Attach Handlers to the discord session
+	ds.AddHandler(ready)
 	ds.AddHandler(messageCreate)
 	ds.AddHandler(guildCreate)
 
