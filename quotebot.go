@@ -48,7 +48,7 @@ func getConfig(file string) config {
 	return configuration
 }
 
-func guildEvent(bm botdata.Manager) func(*discordgo.Session, *discordgo.GuildCreate) {
+func guildCreateEvent(bm botdata.Manager) func(*discordgo.Session, *discordgo.GuildCreate) {
 	return func(session *discordgo.Session, event *discordgo.GuildCreate) {
 		if !bm.GuildExists(*event.Guild) {
 			bm.AddGuild(*event.Guild)
@@ -57,7 +57,7 @@ func guildEvent(bm botdata.Manager) func(*discordgo.Session, *discordgo.GuildCre
 	}
 }
 
-func messageEvent(bm botdata.Manager) func(*discordgo.Session, *discordgo.MessageCreate) {
+func messageCreateEvent(bm botdata.Manager) func(*discordgo.Session, *discordgo.MessageCreate) {
 	return func(session *discordgo.Session, message *discordgo.MessageCreate) {
 		// Check to see if the author is this bot
 		if message.Author.ID == session.State.User.ID {
@@ -83,8 +83,8 @@ func main() {
 
 	// EVENT HANDLING ---------------------------------------------------------
 	// Define Handlers for discord events.
-	messageCreate := messageEvent(botManager)
-	guildCreate := guildEvent(botManager)
+	messageCreate := messageCreateEvent(botManager)
+	guildCreate := guildCreateEvent(botManager)
 
 	// Attach Handlers to the discord session
 	ds.AddHandler(messageCreate)
