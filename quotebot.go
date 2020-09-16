@@ -48,15 +48,34 @@ func getConfig(file string) config {
 	return configuration
 }
 
+func guildEvent(bm botdata.Manager) func(*discordgo.Session, *discordgo.GuildCreate) {
+	return func(session *discordgo.Session, event *discordgo.GuildCreate) {
+		if !bm.GuildExists(*event.Guild) {
+			bm.AddGuild(*event.Guild)
+		}
+		fmt.Println("Login: ", event.Guild.Name)
+	}
+}
+
+func messageEvent(bm botdata.Manager) func(*discordgo.Session, *discordgo.MessageCreate) {
+	return func(session *discordgo.Session, message *discordgo.MessageCreate) {
+		// Check to see if the author is this bot
+		if message.Author.ID == session.State.User.ID {
+			return
+		}
+		// fmt.Println("Recieved a Message: ", message.Content)
+	}
+}
+
 func main() {
 	// INITIALIZATION ---------------------------------------------------------
 	// Store the application configuration
 	botconfig := getConfig(configfile)
 
 	// Starts the data manager for the bot
-	dataManager := botdata.Start(botconfig.DBuri)
+	botManager := botdata.Start(botconfig.DBuri)
 	// defers the graceful shutdown of the data manager
-	defer dataManager.Shutdown()
+	defer botManager.Shutdown()
 
 	// Initialize the Discord Bot
 	ds, err := discordgo.New("Bot " + botconfig.Token)
@@ -64,8 +83,8 @@ func main() {
 
 	// EVENT HANDLING ---------------------------------------------------------
 	// Define Handlers for discord events.
-	messageCreate := dataManager.MessageCreate
-	guildCreate := dataManager.GuildCreate
+	messageCreate := messageEvent(botManager)
+	guildCreate := guildEvent(botManager)
 
 	// Attach Handlers to the discord session
 	ds.AddHandler(messageCreate)

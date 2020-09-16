@@ -84,23 +84,6 @@ func (bm Manager) Shutdown() {
 	}()
 }
 
-// GuildCreate - Event handler called when the logs on or joins a guild
-func (bm Manager) GuildCreate(session *discordgo.Session, event *discordgo.GuildCreate) {
-	if !bm.GuildExists(*event.Guild) {
-		bm.AddGuild(*event.Guild)
-	}
-	fmt.Println("Login: ", event.Guild.Name)
-}
-
-// MessageCreate - Event handler called when a message is created in a joined Guild
-func (bm Manager) MessageCreate(session *discordgo.Session, message *discordgo.MessageCreate) {
-	// Check to see if the author is this bot
-	if message.Author.ID == session.State.User.ID {
-		return
-	}
-	// fmt.Println("Recieved a Message: ", message.Content)
-}
-
 // AddGuild - adds a guild to the database
 func (bm Manager) AddGuild(guild discordgo.Guild) {
 	guilddoc := Guild{
