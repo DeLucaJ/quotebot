@@ -4,7 +4,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
@@ -18,9 +17,9 @@ import (
 const configfile string = "./config.json"
 
 // internal struct for configuration management
-type config struct {
-	Token string
-	DBuri string
+type BotConfig struct {
+	DiscordToken string
+	DBuri        string
 }
 
 // Used for general error checking and panicing
@@ -31,25 +30,26 @@ func checkError(err error, message string) {
 	}
 }
 
-// Retrieves the Bot Token
+// Retrieves the Bot DiscordToken
 // Will eventually get the JSON configuration for quotebot
-func getConfig(file string) config {
-	// read the fildata of configfile
-	filedata, err := ioutil.ReadFile(file)
+func getConfig(file string) BotConfig {
+	// read the fileData of file
+	fileData, err := os.ReadFile(file)
 	checkError(err, "Error reading discord token: ")
 
-	//turn config.json into a config struct
-	var configuration config
-	err = json.Unmarshal(filedata, &configuration)
-	if err != nil {
-		fmt.Println("Error unmarshalling json: ", err)
-	}
+	//turn config.json into a BotConfig struct
+	var configuration BotConfig
+	err = json.Unmarshal(fileData, &configuration)
+	checkError(err, "Error unmarshalling json: ")
 
 	return configuration
 }
 
 func ready(session *discordgo.Session, event *discordgo.Ready) {
-	session.UpdateStatus(0, "q!")
+	err := session.UpdateGameStatus(0, "q!")
+	if err != nil {
+		fmt.Println("Error updated Bot Status")
+	}
 }
 
 func guildCreateEvent(bm botdata.Manager) func(*discordgo.Session, *discordgo.GuildCreate) {
@@ -100,7 +100,7 @@ func main() {
 	defer botManager.Shutdown()
 
 	// Initialize the Discord Bot
-	ds, err := discordgo.New("Bot " + botconfig.Token)
+	ds, err := discordgo.New("Bot " + botconfig.DiscordToken)
 	checkError(err, "Error creating Discord Session: ")
 
 	// EVENT HANDLING ---------------------------------------------------------
