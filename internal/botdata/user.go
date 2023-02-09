@@ -1,12 +1,14 @@
 package botdata
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
+import (
+	"time"
+)
 
 // User - An object representing a User
 type User struct {
-	ID      primitive.ObjectID `bson:"_id,omitempty"`       // Mongo ID of this object
-	Date    primitive.DateTime `bson:"date,omitempty"`      // date added to database
-	GuildID primitive.ObjectID `bson:"guild,omitempty"`     // Mongo ID of the guild this user belongs to
-	Name    string             `bson:"name,omitempty"`      // Name of the User
-	UserID  string             `bson:"discordid,omitempty"` // Disocrd User ID
+	ID      uint      // Mongo ID of this object
+	Date    time.Time // date added to database
+	GuildID uint      // Mongo ID of the guild this user belongs to
+	Name    string    // Name of the User
+	UserID  string    // Disocrd User ID
 }

@@ -1,11 +1,13 @@
 package botdata
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
+import (
+	"time"
+)
 
 // Guild - Represents a Discord Server associated with this bot
 type Guild struct {
-	ID        primitive.ObjectID `bson:"_id,omitempty"`       // the ID of the Guild in the database
-	Date      primitive.DateTime `bson:"date,omitempty"`      // date the Guild was added to the database
-	DiscordID string             `bson:"discordid,omitempty"` // The Discord ID of the guild
-	Name      string             `bson:"name,omitempty"`      // name of the guild
+	ID        uint      // the ID of the Guild in the database
+	Date      time.Time // date the Guild was added to the database
+	DiscordID string    // The Discord ID of the guild
+	Name      string    // name of the guild
 }

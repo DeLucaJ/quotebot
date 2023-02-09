@@ -14,25 +14,26 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// Manager - struct that holds the data necessary to manage the database
+// Manager - struct that holds the data necessary to manage the Database
 type Manager struct {
-	client   *mongo.Client
-	ctx      context.Context
-	cancel   context.CancelFunc
-	database *mongo.Database
-	guildcol *mongo.Collection
-	usercol  *mongo.Collection
-	quotecol *mongo.Collection
+	Client     *mongo.Client
+	Context    context.Context
+	CancelFunc context.CancelFunc
+	Database   *mongo.Database
+	GuildTable *mongo.Collection
+	UserTable  *mongo.Collection
+	QuoteTable *mongo.Collection
 }
 
-// Start - Starts the boss and initializes the database connection
-// 	uri string: the uri for the database from config.json
+// Start - Starts the boss and initializes the Database connection
+//
+//	uri string: the uri for the Database from config.json
 func Start(uri string) Manager {
 	fmt.Println("Initializeing Mongo Client")
 
 	// Connect to MongoDB
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	// defer cancel() // Defers the context cancel
+	// defer CancelFunc() // Defers the context CancelFunc
 
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
 	if err != nil {
@@ -41,12 +42,12 @@ func Start(uri string) Manager {
 		defer func() {
 			err := client.Disconnect(ctx)
 			if err != nil {
-				fmt.Println("Error disconnecting from mongo client: " + err.Error())
+				fmt.Println("Error disconnecting from mongo Client: " + err.Error())
 				log.Fatal(err)
 			}
 		}()
 
-		fmt.Println("Error connecting to mongo client: " + err.Error())
+		fmt.Println("Error connecting to mongo Client: " + err.Error())
 		log.Fatal(err)
 	}
 
@@ -58,48 +59,48 @@ func Start(uri string) Manager {
 
 	// initializes the singleton botmanager
 	return Manager{
-		client:   client,
-		ctx:      ctx,
-		cancel:   cancel,
-		database: db,
-		guildcol: gc,
-		usercol:  uc,
-		quotecol: qc,
+		Client:     client,
+		Context:    ctx,
+		CancelFunc: cancel,
+		Database:   db,
+		GuildTable: gc,
+		UserTable:  uc,
+		QuoteTable: qc,
 	}
 }
 
-// Shutdown - Ends the connection to the database and cleans the context
+// Shutdown - Ends the connection to the Database and cleans the context
 func (bm Manager) Shutdown() {
-	cancel := bm.cancel
-	client := bm.client
-	ctx := bm.ctx
+	cancel := bm.CancelFunc
+	client := bm.Client
+	ctx := bm.Context
 
 	defer cancel()
 	defer func() {
 		err := client.Disconnect(ctx)
 		if err != nil {
-			fmt.Println("Error disconnecting from mongo client: " + err.Error())
+			fmt.Println("Error disconnecting from mongo Client: " + err.Error())
 			log.Fatal(err)
 		}
 	}()
 }
 
-// AddGuild - adds a guild to the database
+// AddGuild - adds a guild to the Database
 func (bm Manager) AddGuild(guild discordgo.Guild) {
 	guilddoc := Guild{
-		Date:      primitive.NewDateTimeFromTime(time.Now()),
+		Date:      time.Now(),
 		DiscordID: guild.ID,
 		Name:      guild.Name,
 	}
 	bm.insertGuild(guilddoc)
 }
 
-// AddUser - adds a user to the database
+// AddUser - adds a user to the Database
 func (bm Manager) AddUser(name string, user discordgo.User, guild discordgo.Guild) {
 	guilddoc := bm.findGuild(bson.M{"discordid": guild.ID})
 
 	userdoc := User{
-		Date:    primitive.NewDateTimeFromTime(time.Now()),
+		Date:    time.Now(),
 		Name:    name,
 		UserID:  user.ID,
 		GuildID: guilddoc.ID,
@@ -108,14 +109,14 @@ func (bm Manager) AddUser(name string, user discordgo.User, guild discordgo.Guil
 	bm.insertUser(userdoc)
 }
 
-// AddQuote - adds a qutoe to the database
+// AddQuote - adds a qutoe to the Database
 func (bm Manager) AddQuote(content string, speaker discordgo.User, submitter discordgo.User, guild discordgo.Guild) {
 	guilddoc := bm.findGuild(bson.M{"discordid": guild.ID})
 	speakerdoc := bm.findUser(bson.M{"discordid": speaker.ID, "guild": guild.ID})
 	submitterdoc := bm.findUser(bson.M{"discordid": speaker.ID, "guild": guild.ID})
 
 	quote := Quote{
-		Date:      primitive.NewDateTimeFromTime(time.Now()),
+		Date:      time.Now(),
 		Content:   content,
 		Speaker:   speakerdoc.ID,
 		Submitter: submitterdoc.ID,
@@ -154,7 +155,7 @@ func (bm Manager) randomQuote(quotes []Quote) Quote {
 // GuildExists - returns true if the user exists, false otherwise
 func (bm Manager) GuildExists(guild discordgo.Guild) bool {
 	var existing Guild
-	err := bm.usercol.FindOne(bm.ctx, bson.M{"discordid": guild.ID}).Decode(&existing)
+	err := bm.UserTable.FindOne(bm.Context, bson.M{"discordid": guild.ID}).Decode(&existing)
 	if err == mongo.ErrNoDocuments {
 		return false
 	}
@@ -168,7 +169,7 @@ func (bm Manager) GuildExists(guild discordgo.Guild) bool {
 // UserExists - returns true if the user exists, false otherwise
 func (bm Manager) UserExists(user discordgo.User, guild discordgo.Guild) bool {
 	var existing User
-	err := bm.usercol.FindOne(bm.ctx, bson.M{"userid": user.ID, "guild": guild.ID}).Decode(&existing)
+	err := bm.UserTable.FindOne(bm.Context, bson.M{"userid": user.ID, "guild": guild.ID}).Decode(&existing)
 	if err == mongo.ErrNoDocuments {
 		return false
 	}
@@ -182,7 +183,7 @@ func (bm Manager) UserExists(user discordgo.User, guild discordgo.Guild) bool {
 // adds a Guild to the database
 // move find and construction logic into separate event code or constructor
 func (bm Manager) insertGuild(guild Guild) {
-	result, err := bm.guildcol.InsertOne(bm.ctx, guild)
+	result, err := bm.GuildTable.InsertOne(bm.Context, guild)
 	if err != nil {
 		fmt.Println("Error inserting guild: ", err)
 		panic(err)
@@ -192,10 +193,10 @@ func (bm Manager) insertGuild(guild Guild) {
 }
 
 // adds a User to the database
-//move find & construction logic into separate event code or constructor
+// move find & construction logic into separate event code or constructor
 func (bm Manager) insertUser(user User) {
-	// insert document into database
-	result, err := bm.usercol.InsertOne(bm.ctx, user)
+	// insert document into Database
+	result, err := bm.UserTable.InsertOne(bm.Context, user)
 	if err != nil {
 		fmt.Println("Error inserting user: ", err)
 		log.Fatal(err)
@@ -207,7 +208,7 @@ func (bm Manager) insertUser(user User) {
 // move find calls and construction into the event code or separate constructor
 func (bm Manager) insertQuote(quote Quote) {
 	//insert quote into DB
-	result, err := bm.quotecol.InsertOne(bm.ctx, quote)
+	result, err := bm.QuoteTable.InsertOne(bm.Context, quote)
 	if err != nil {
 		fmt.Println("Error inserting quote: ", err)
 		log.Fatal(err)
@@ -217,7 +218,7 @@ func (bm Manager) insertQuote(quote Quote) {
 
 func (bm Manager) findGuild(query primitive.M) Guild {
 	var guild Guild
-	err := bm.guildcol.FindOne(bm.ctx, query).Decode(&guild)
+	err := bm.GuildTable.FindOne(bm.Context, query).Decode(&guild)
 	if err != nil {
 		fmt.Println("Error retrieving guild: ", err)
 		log.Fatal(err)
@@ -228,12 +229,12 @@ func (bm Manager) findGuild(query primitive.M) Guild {
 func (bm Manager) findManyGuilds(query primitive.M) []Guild {
 	var guilds []Guild
 
-	cursor, err := bm.quotecol.Find(bm.ctx, query)
+	cursor, err := bm.QuoteTable.Find(bm.Context, query)
 	if err != nil {
 		fmt.Println("Error finding qutoes: ", err)
 		log.Fatal(err)
 	}
-	if err = cursor.All(bm.ctx, &guilds); err != nil {
+	if err = cursor.All(bm.Context, &guilds); err != nil {
 		fmt.Println("Err converting cursor to quote slice: ", err)
 		log.Fatal(err)
 	}
@@ -244,7 +245,7 @@ func (bm Manager) findManyGuilds(query primitive.M) []Guild {
 func (bm Manager) findUser(query primitive.M) User {
 	// bson.M{"userid": userid, "guildid": guild}
 	var user User
-	err := bm.usercol.FindOne(bm.ctx, query).Decode(&user)
+	err := bm.UserTable.FindOne(bm.Context, query).Decode(&user)
 	if err != nil {
 		fmt.Println("Error retrieving user: ", err)
 		log.Fatal(err)
@@ -255,12 +256,12 @@ func (bm Manager) findUser(query primitive.M) User {
 func (bm Manager) findManyUsers(query primitive.M) []User {
 	var users []User
 
-	cursor, err := bm.usercol.Find(bm.ctx, query)
+	cursor, err := bm.UserTable.Find(bm.Context, query)
 	if err != nil {
 		fmt.Println("Error finding qutoes: ", err)
 		log.Fatal(err)
 	}
-	if err = cursor.All(bm.ctx, &users); err != nil {
+	if err = cursor.All(bm.Context, &users); err != nil {
 		fmt.Println("Err converting cursor to quote slice: ", err)
 		log.Fatal(err)
 	}
@@ -272,7 +273,7 @@ func (bm Manager) findQuote(query primitive.ObjectID) Quote {
 	// bson.M{"_id": quoteref}
 	var quote Quote
 
-	err := bm.quotecol.FindOne(bm.ctx, query).Decode(&quote)
+	err := bm.QuoteTable.FindOne(bm.Context, query).Decode(&quote)
 	if err != nil {
 		fmt.Println("Error retrieving quote: ", err)
 		log.Fatal(err)
@@ -283,12 +284,12 @@ func (bm Manager) findQuote(query primitive.ObjectID) Quote {
 func (bm Manager) findManyQuotes(query primitive.M) []Quote {
 	var quotes []Quote
 
-	cursor, err := bm.quotecol.Find(bm.ctx, query)
+	cursor, err := bm.QuoteTable.Find(bm.Context, query)
 	if err != nil {
 		fmt.Println("Error finding qutoes: ", err)
 		log.Fatal(err)
 	}
-	if err = cursor.All(bm.ctx, &quotes); err != nil {
+	if err = cursor.All(bm.Context, &quotes); err != nil {
 		fmt.Println("Err converting cursor to quote slice: ", err)
 		log.Fatal(err)
 	}
@@ -301,7 +302,7 @@ func (bm Manager) flagQutoe() {
 
 }
 
-// sets a different alias for a user in the database
+// sets a different alias for a user in the Database
 func (bm Manager) renameUser() {
 
 }

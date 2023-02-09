@@ -92,15 +92,15 @@ func messageCreateEvent(bm botdata.Manager) func(*discordgo.Session, *discordgo.
 func main() {
 	// INITIALIZATION ---------------------------------------------------------
 	// Store the application configuration
-	botconfig := getConfig(configfile)
+	botConfig := getConfig(configfile)
 
 	// Starts the data manager for the bot
-	botManager := botdata.Start(botconfig.DBuri)
+	botManager := botdata.Start(botConfig.DBuri)
 	// defers the graceful shutdown of the data manager
 	defer botManager.Shutdown()
 
 	// Initialize the Discord Bot
-	ds, err := discordgo.New("Bot " + botconfig.DiscordToken)
+	ds, err := discordgo.New("Bot " + botConfig.DiscordToken)
 	checkError(err, "Error creating Discord Session: ")
 
 	// EVENT HANDLING ---------------------------------------------------------
@@ -118,7 +118,10 @@ func main() {
 	err = ds.Open()
 	checkError(err, "Error opening Discord session: ")
 	// Defers a call to Close the Discord Session
-	defer ds.Close()
+	defer func(ds *discordgo.Session) {
+		err := ds.Close()
+		checkError(err, "Error closing Discord session: ")
+	}(ds)
 
 	// Start Message
 	fmt.Println("Welcome to Quotebot X. Press CTRL+C to exit.")
