@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"math/rand"
 	"time"
 
@@ -64,68 +65,63 @@ func (bm Manager) AddGuild(guild discordgo.Guild) {
 }
 
 // AddUser - adds a user to the Database
-func (bm Manager) AddUser(name string, user discordgo.User, guild discordgo.Guild) {
-	var guildEntry Guild
-	bm.Database.Where(&Guild{DiscordID: guild.ID}).Find(&guildEntry)
-
+func (bm Manager) AddUser(user discordgo.User, guild Guild) {
 	userEntry := User{
-		Name:      name,
+		Name:      user.Username,
 		DiscordID: user.ID,
-		GuildID:   guildEntry.ID,
+		GuildID:   guild.ID,
 	}
 
-	bm.insertUser(userEntry)
+	bm.InsertUser(userEntry)
 }
 
 // AddQuote - adds a Quote to the Database
-func (bm Manager) AddQuote(content string, speaker discordgo.User, submitter discordgo.User, guild discordgo.Guild) {
-	var guildEntry Guild
-	var speakerEntry User
-	var submitterEntry User
-
-	if !bm.GuildExists(guild) {
-		fmt.Println("error: attempt to add quote to non-existent guild")
-	}
-	bm.Database.Where(&Guild{DiscordID: guild.ID}).Find(&guildEntry)
+func (bm Manager) AddQuote(content string, speaker discordgo.User, submitter discordgo.User, guildID string) Quote {
+	guildEntry := bm.FindGuild(guildID)
 
 	// Check if speaker user exists, if not make that user
-	if !bm.UserExists(speaker, guildEntry) {
-		bm.AddUser(speaker.Username, speaker, guild)
+	if !bm.UserExists(speaker.ID, guildEntry) {
+		bm.AddUser(speaker, guildEntry)
 	}
+	speakerEntry := bm.FindUser(speaker.ID, guildEntry.ID)
 
 	// Check if submitter user exists, if not make that user
-	if !bm.UserExists(submitter, guildEntry) {
-		bm.AddUser(submitter.Username, submitter, guild)
+	if !bm.UserExists(submitter.ID, guildEntry) {
+		bm.AddUser(submitter, guildEntry)
 	}
+	submitterEntry := bm.FindUser(submitter.ID, guildEntry.ID)
 
 	quote := Quote{
-		Content:   content,
-		Speaker:   speakerEntry.ID,
-		Submitter: submitterEntry.ID,
-		Guild:     guildEntry.ID,
+		Content:     content,
+		SpeakerID:   speakerEntry.ID,
+		Speaker:     speakerEntry,
+		SubmitterID: submitterEntry.ID,
+		Submitter:   submitterEntry,
+		GuildID:     guildEntry.ID,
 	}
 
-	bm.insertQuote(quote)
+	bm.InsertQuote(quote)
+
+	return quote
 }
 
 // ChooseRandomQuote - Chooses a random quote from a specific guild
-func (bm Manager) ChooseRandomQuote(guild discordgo.Guild) Quote {
-	guildEntry := bm.findGuild(guild)
-	quotes := bm.findManyQuotes(&Quote{Guild: guildEntry.ID})
+func (bm Manager) ChooseRandomQuote(guildID string) Quote {
+	guildEntry := bm.FindGuild(guildID)
 
-	return bm.randomQuote(quotes)
+	return bm.randomQuote(guildEntry.Quotes)
 }
 
 // ChooseRandomQuoteBySpeaker - Chooses a random quote from guild and speaker
-func (bm Manager) ChooseRandomQuoteBySpeaker(speaker discordgo.User, guild discordgo.Guild) Quote {
-	guildEntry := bm.findGuild(guild)
-	speakerEntry := bm.findUser(speaker)
-	quotes := bm.findManyQuotes(&Quote{Speaker: speakerEntry.ID, Guild: guildEntry.ID})
+func (bm Manager) ChooseRandomQuoteBySpeaker(speakerID string, guildID string) Quote {
+	guildEntry := bm.FindGuild(guildID)
+	speakerEntry := bm.FindUser(speakerID, guildEntry.ID)
+	quotes := bm.FindManyQuotes(&Quote{SpeakerID: speakerEntry.ID, GuildID: guildEntry.ID})
 
 	return bm.randomQuote(quotes)
 }
 
-// helper for random qutoes
+// helper for random quotes
 func (bm Manager) randomQuote(quotes []Quote) Quote {
 	if len(quotes) > 0 {
 		return quotes[rand.Intn(len(quotes))]
@@ -135,10 +131,14 @@ func (bm Manager) randomQuote(quotes []Quote) Quote {
 	return Quote{}
 }
 
-// GuildExists - returns true if the user exists, false otherwise
 func (bm Manager) GuildExists(guild discordgo.Guild) bool {
+	return bm.GuildExistsByID(guild.ID)
+}
+
+// GuildExistsByID - returns true if the user exists, false otherwise
+func (bm Manager) GuildExistsByID(guildID string) bool {
 	var existing Guild
-	result := bm.Database.Where(&Guild{DiscordID: guild.ID}).First(&existing)
+	result := bm.Database.Where(&Guild{DiscordID: guildID}).First(&existing)
 	if result.Error != nil {
 		fmt.Println("Error checking for guild existence: ", result.Error)
 	}
@@ -146,18 +146,18 @@ func (bm Manager) GuildExists(guild discordgo.Guild) bool {
 }
 
 // UserExists - returns true if the user exists, false otherwise
-func (bm Manager) UserExists(user discordgo.User, guild Guild) bool {
+func (bm Manager) UserExists(userID string, guild Guild) bool {
 	var existing User
-	result := bm.Database.Where(&User{GuildID: guild.ID, DiscordID: user.ID}).First(&existing)
+	result := bm.Database.Where(&User{GuildID: guild.ID, DiscordID: userID}).First(&existing)
 	if result.Error != nil {
 		fmt.Println("Error checking for user existence: ", result.Error)
 	}
 	return result.RowsAffected > 0
 }
 
-// adds a Guild to the database
+// InsertGuild adds a Guild to the database
 // move find and construction logic into separate event code or constructor
-func (bm Manager) insertGuild(guild Guild) {
+func (bm Manager) InsertGuild(guild Guild) {
 	result := bm.Database.Create(&guild)
 	if result.Error != nil {
 		fmt.Println("Error inserting guild: ", result.Error)
@@ -167,9 +167,9 @@ func (bm Manager) insertGuild(guild Guild) {
 	fmt.Println("Guild Add: ", guild.Name, result.Name())
 }
 
-// adds a User to the database
+// InsertUser adds a User to the database
 // move find & construction logic into separate event code or constructor
-func (bm Manager) insertUser(user User) {
+func (bm Manager) InsertUser(user User) {
 	// insert document into Database
 	result := bm.Database.Create(&user)
 	if result.Error != nil {
@@ -178,9 +178,9 @@ func (bm Manager) insertUser(user User) {
 	fmt.Println("User Added: ", user.Name, result.Name())
 }
 
-// adds a Quote to the database
+// InsertQuote adds a Quote to the database
 // move find calls and construction into the event code or separate constructor
-func (bm Manager) insertQuote(quote Quote) {
+func (bm Manager) InsertQuote(quote Quote) {
 	//insert quote into DB
 	result := bm.Database.Create(&quote)
 	if result.Error != nil {
@@ -189,37 +189,59 @@ func (bm Manager) insertQuote(quote Quote) {
 	fmt.Println("Quote Added: ", result.Name())
 }
 
-func (bm Manager) findGuild(guild discordgo.Guild) Guild {
+func (bm Manager) FindGuild(guildID string) Guild {
 	var guildEntry Guild
-	err := bm.Database.Where(&Guild{DiscordID: guild.ID}).First(&guildEntry)
-	if err != nil {
-		fmt.Println("Error retrieving guild: ", err)
+	result := bm.Database.
+		Where(&Guild{DiscordID: guildID}).
+		Preload(clause.Associations).
+		Preload("Quotes.Speaker").
+		Preload("Quotes.Submitter").
+		First(&guildEntry)
+
+	if result.Error != nil {
+		fmt.Println(fmt.Sprintf("Error retrieving guild of ID %s: %s", guildID, result.Error))
 	}
 	return guildEntry
 }
 
-func (bm Manager) findUser(user discordgo.User) User {
+func (bm Manager) FindUser(userID string, guildID uint) User {
 	var userEntry User
-	bm.Database.Where(&User{DiscordID: user.ID}).First(&userEntry)
+	result := bm.Database.Where(&User{DiscordID: userID, GuildID: guildID}).First(&userEntry)
+	if result.Error != nil {
+		fmt.Println(fmt.Sprintf("Error retrieving user of ID %s: %s", userID, result.Error))
+	}
 	return userEntry
 }
 
-func (bm Manager) findQuote(query *Quote) Quote {
+func (bm Manager) FindQuote(query *Quote) Quote {
 	var quoteEntry Quote
-	bm.Database.Where(&query).First(&quoteEntry)
+	result := bm.Database.
+		Where(&query).
+		Preload(clause.Associations).
+		First(&quoteEntry)
+
+	if result.Error != nil {
+		fmt.Println("Error retrieving quote", result.Error)
+	}
 	return quoteEntry
 }
 
-func (bm Manager) findManyQuotes(query *Quote) []Quote {
+func (bm Manager) FindManyQuotes(query *Quote) []Quote {
 	var quotes []Quote
 
-	bm.Database.Where(&query).Find(&quotes)
+	result := bm.Database.Where(&query).
+		Preload(clause.Associations).
+		Find(&quotes)
+
+	if result.Error != nil {
+		fmt.Println("Error retrieving quotes", result.Error)
+	}
 
 	return quotes
 }
 
 /* // flags a quote for inspection by administrator
-func (bm Manager) flagQutoe() {
+func (bm Manager) flagQuote() {
 
 }
 

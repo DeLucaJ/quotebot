@@ -1,4 +1,4 @@
-// Quotebot X by Joseph DeLuca
+// QuoteBot X by Joseph DeLuca
 package main
 
 import (
@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/DeLucaJ/quotebot/internal/botdata"
@@ -16,10 +17,17 @@ import (
 // location of configuration file
 const configFile string = "./config.json"
 
+type CommandConfig struct {
+	Prefix string `json:"prefix"`
+	Add    string `json:"add"`
+	By     string `json:"by"`
+}
+
 // BotConfig internal struct for configuration management
 type BotConfig struct {
-	DiscordToken     string
-	ConnectionString string
+	DiscordToken     string        `json:"discord-token"`
+	ConnectionString string        `json:"connection-string"`
+	CommandConfig    CommandConfig `json:"command-config"`
 }
 
 // Used for general error checking and panicking
@@ -30,8 +38,14 @@ func checkError(err error, message string) {
 	}
 }
 
+func checkErrorBenign(err error, message string) {
+	if err != nil {
+		fmt.Println(message + err.Error())
+	}
+}
+
 // Retrieves the Bot DiscordToken
-// Will eventually get the JSON configuration for quotebot
+// Will eventually get the JSON configuration for quoteBot
 func getConfig(file string) BotConfig {
 	// read the fileData of file
 	fileData, err := os.ReadFile(file)
@@ -45,7 +59,7 @@ func getConfig(file string) BotConfig {
 	return configuration
 }
 
-func ready(session *discordgo.Session, event *discordgo.Ready) {
+func ready(session *discordgo.Session, _ *discordgo.Ready) {
 	err := session.UpdateGameStatus(0, "q!")
 	if err != nil {
 		fmt.Println("Error updated Bot Status")
@@ -65,14 +79,14 @@ func guildCreateEvent(bm botdata.Manager) func(*discordgo.Session, *discordgo.Gu
 
 		for _, channel := range event.Guild.Channels {
 			if channel.ID == event.Guild.ID {
-				_, _ = session.ChannelMessageSend(channel.ID, "QuoteBot is ready! Type !quote")
+				_, _ = session.ChannelMessageSend(channel.ID, "QuoteBot is ready! Type q!")
 				return
 			}
 		}
 	}
 }
 
-func messageCreateEvent(bm botdata.Manager) func(*discordgo.Session, *discordgo.MessageCreate) {
+func messageCreateEvent(bm botdata.Manager, commandConfig CommandConfig) func(*discordgo.Session, *discordgo.MessageCreate) {
 	return func(session *discordgo.Session, message *discordgo.MessageCreate) {
 		// Check to see if the author is this bot
 		if message.Author.ID == session.State.User.ID {
@@ -80,13 +94,80 @@ func messageCreateEvent(bm botdata.Manager) func(*discordgo.Session, *discordgo.
 		}
 
 		// check if it's a command
+		if strings.HasPrefix(message.Content, commandConfig.Prefix) {
+			// Get the current discord Channel
+			channel, err := session.State.Channel(message.ChannelID)
+			checkError(err, "Error accessing Channel: ")
 
-		// parse arguments
+			// remove the prefix and delineate the string into separate words
+			content := strings.TrimPrefix(message.Content, commandConfig.Prefix)
+			arguments := strings.Split(content, " ")
 
-		// construct result
+			// if there are arguments, parse them
+			if len(arguments) > 0 {
+				switch arguments[0] {
+				case commandConfig.Add:
+					addQuote(bm, commandConfig, arguments[1:], session, message)
+					break
+				case commandConfig.By:
+					sendRandomQuoteByUser(bm, session, message)
+					break
+				default:
+					sendRandomQuote(bm, session, message)
+				}
+			} else {
+				sendRandomQuote(bm, session, message)
+			}
+			err = session.ChannelMessageDelete(channel.ID, message.ID)
+			checkErrorBenign(err, "Error deleting message: ")
+			return
+		}
 
-		// send message
 	}
+}
+
+func quoteToMessage(quote botdata.Quote) string {
+	return fmt.Sprintf("%s: \"%s\"\n submitted by: %s", quote.Speaker.Name, quote.Content, quote.Submitter.Name)
+}
+
+func sendQuoteMessage(channelID string, session *discordgo.Session, quote botdata.Quote) {
+	channel, err := session.State.Channel(channelID)
+	checkError(err, "Error accessing Channel: ")
+	_, err = session.ChannelMessageSend(channel.ID, quoteToMessage(quote))
+	checkErrorBenign(err, "Error sending quote message: ")
+}
+
+func sendRandomQuote(bm botdata.Manager, session *discordgo.Session, message *discordgo.MessageCreate) {
+	quote := bm.ChooseRandomQuote(message.GuildID)
+	sendQuoteMessage(message.ChannelID, session, quote)
+}
+
+func sendRandomQuoteByUser(bm botdata.Manager, session *discordgo.Session, message *discordgo.MessageCreate) {
+	quote := bm.ChooseRandomQuoteBySpeaker(message.Mentions[0].ID, message.GuildID)
+	sendQuoteMessage(message.ChannelID, session, quote)
+}
+
+func addQuote(bm botdata.Manager, commandConfig CommandConfig, arguments []string, session *discordgo.Session, message *discordgo.MessageCreate) {
+	channel, err := session.State.Channel(message.ChannelID)
+	checkError(err, "Error accessing Channel: ")
+
+	if len(arguments) < 2 {
+		delivery := fmt.Sprintf("Missing arguments for Add.\n Use command \"%s%s <Mention User> <Quote>\".",
+			commandConfig.Prefix,
+			commandConfig.Add)
+		_, err = session.ChannelMessageSend(channel.ID, delivery)
+		checkErrorBenign(err, "Error sending add quote missing arg message: ")
+		return
+	}
+
+	speaker := message.Mentions[0]
+	submitter := message.Author
+	content := strings.Trim(strings.Join(arguments[1:], " "), `'"`)
+	quote := bm.AddQuote(content, *speaker, *submitter, channel.GuildID)
+
+	delivery := fmt.Sprintf("%s added the quote:\n\t%s: \"%s\"", quote.Submitter.Name, quote.Speaker.Name, quote.Content)
+	_, err = session.ChannelMessageSend(channel.ID, delivery)
+	checkErrorBenign(err, "Error sending add quote message: ")
 }
 
 func main() {
@@ -105,7 +186,7 @@ func main() {
 
 	// EVENT HANDLING ---------------------------------------------------------
 	// Define Handlers for discord events.
-	messageCreate := messageCreateEvent(botManager)
+	messageCreate := messageCreateEvent(botManager, botConfig.CommandConfig)
 	guildCreate := guildCreateEvent(botManager)
 
 	// Attach Handlers to the discord session
@@ -124,9 +205,9 @@ func main() {
 	}(ds)
 
 	// Start Message
-	fmt.Println("Welcome to Quotebot X. Press CTRL+C to exit.")
+	fmt.Println("Welcome to QuoteBot X. Press CTRL+C to exit.")
 
-	// Creates Signal Interupt Channels
+	// Creates Signal Interrupt Channels
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	<-sc
