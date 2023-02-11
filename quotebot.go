@@ -14,15 +14,15 @@ import (
 )
 
 // location of configuration file
-const configfile string = "./config.json"
+const configFile string = "./config.json"
 
-// internal struct for configuration management
+// BotConfig internal struct for configuration management
 type BotConfig struct {
-	DiscordToken string
-	DBuri        string
+	DiscordToken     string
+	ConnectionString string
 }
 
-// Used for general error checking and panicing
+// Used for general error checking and panicking
 func checkError(err error, message string) {
 	if err != nil {
 		fmt.Println(message + err.Error())
@@ -79,7 +79,7 @@ func messageCreateEvent(bm botdata.Manager) func(*discordgo.Session, *discordgo.
 			return
 		}
 
-		// check if its a command
+		// check if it's a command
 
 		// parse arguments
 
@@ -92,10 +92,10 @@ func messageCreateEvent(bm botdata.Manager) func(*discordgo.Session, *discordgo.
 func main() {
 	// INITIALIZATION ---------------------------------------------------------
 	// Store the application configuration
-	botConfig := getConfig(configfile)
+	botConfig := getConfig(configFile)
 
 	// Starts the data manager for the bot
-	botManager := botdata.Start(botConfig.DBuri)
+	botManager := botdata.Start(botConfig.ConnectionString)
 	// defers the graceful shutdown of the data manager
 	defer botManager.Shutdown()
 
