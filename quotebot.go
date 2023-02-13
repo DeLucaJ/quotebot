@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/DeLucaJ/quotebot/internal/botdata"
 	"github.com/bwmarrin/discordgo"
@@ -57,6 +58,82 @@ func getConfig(file string) BotConfig {
 	checkError(err, "Error unmarshalling json: ")
 
 	return configuration
+}
+
+func quoteToMessage(session *discordgo.Session, quote botdata.Quote) discordgo.MessageSend {
+	footer := discordgo.MessageEmbedFooter{
+		Text: fmt.Sprintf("Submitted by: %s", quote.Submitter.Name),
+	}
+
+	speakerInfo, _ := session.User(quote.Speaker.DiscordID)
+
+	thumbnail := discordgo.MessageEmbedThumbnail{
+		URL: speakerInfo.AvatarURL(""),
+	}
+
+	embed := discordgo.MessageEmbed{
+		Type:        discordgo.EmbedTypeRich,
+		Color:       speakerInfo.AccentColor,
+		Title:       fmt.Sprintf("%s", quote.Speaker.Name),
+		Description: fmt.Sprintf("\"%s\"", quote.Content),
+		Footer:      &footer,
+		Thumbnail:   &thumbnail,
+		Timestamp:   quote.CreatedAt.Format(time.RFC3339),
+	}
+
+	messagePackage := discordgo.MessageSend{
+		Embeds: []*discordgo.MessageEmbed{&embed},
+	}
+	return messagePackage
+}
+
+func quoteToMessageWithContent(session *discordgo.Session, quote botdata.Quote, content string) discordgo.MessageSend {
+	quoteEmbed := quoteToMessage(session, quote)
+	quoteEmbed.Content = content
+	return quoteEmbed
+}
+
+func sendQuoteMessage(channelID string, session *discordgo.Session, quote botdata.Quote) {
+	channel, err := session.State.Channel(channelID)
+	checkError(err, "Error accessing Channel: ")
+	// Replace this with message send complex
+	quoteEmbed := quoteToMessage(session, quote)
+	_, err = session.ChannelMessageSendComplex(channel.ID, &quoteEmbed)
+	checkErrorBenign(err, "Error sending quote message: ")
+}
+
+func sendRandomQuote(bm botdata.Manager, session *discordgo.Session, message *discordgo.MessageCreate) {
+	quote := bm.ChooseRandomQuote(message.GuildID)
+	sendQuoteMessage(message.ChannelID, session, quote)
+}
+
+func sendRandomQuoteByUser(bm botdata.Manager, session *discordgo.Session, message *discordgo.MessageCreate) {
+	quote := bm.ChooseRandomQuoteBySpeaker(message.Mentions[0].ID, message.GuildID)
+	sendQuoteMessage(message.ChannelID, session, quote)
+}
+
+func addQuote(bm botdata.Manager, commandConfig CommandConfig, arguments []string, session *discordgo.Session, message *discordgo.MessageCreate) {
+	channel, err := session.State.Channel(message.ChannelID)
+	checkError(err, "Error accessing Channel: ")
+
+	if len(arguments) < 2 {
+		delivery := fmt.Sprintf("Missing arguments for Add.\n Use command \"%s%s <Mention User> <Quote>\".",
+			commandConfig.Prefix,
+			commandConfig.Add)
+		_, err = session.ChannelMessageSend(channel.ID, delivery)
+		checkErrorBenign(err, "Error sending add quote missing arg message: ")
+		return
+	}
+
+	speaker := message.Mentions[0]
+	submitter := message.Author
+	content := strings.Trim(strings.Join(arguments[1:], " "), `'"`)
+	quote := bm.AddQuote(content, *speaker, *submitter, channel.GuildID)
+
+	quoteEmbed := quoteToMessageWithContent(session, quote, "Thank you for the new quote!")
+
+	_, err = session.ChannelMessageSendComplex(channel.ID, &quoteEmbed)
+	checkErrorBenign(err, "Error sending add quote message: ")
 }
 
 func ready(session *discordgo.Session, _ *discordgo.Ready) {
@@ -124,50 +201,6 @@ func messageCreateEvent(bm botdata.Manager, commandConfig CommandConfig) func(*d
 		}
 
 	}
-}
-
-func quoteToMessage(quote botdata.Quote) string {
-	return fmt.Sprintf("%s: \"%s\"\n submitted by: %s", quote.Speaker.Name, quote.Content, quote.Submitter.Name)
-}
-
-func sendQuoteMessage(channelID string, session *discordgo.Session, quote botdata.Quote) {
-	channel, err := session.State.Channel(channelID)
-	checkError(err, "Error accessing Channel: ")
-	_, err = session.ChannelMessageSend(channel.ID, quoteToMessage(quote))
-	checkErrorBenign(err, "Error sending quote message: ")
-}
-
-func sendRandomQuote(bm botdata.Manager, session *discordgo.Session, message *discordgo.MessageCreate) {
-	quote := bm.ChooseRandomQuote(message.GuildID)
-	sendQuoteMessage(message.ChannelID, session, quote)
-}
-
-func sendRandomQuoteByUser(bm botdata.Manager, session *discordgo.Session, message *discordgo.MessageCreate) {
-	quote := bm.ChooseRandomQuoteBySpeaker(message.Mentions[0].ID, message.GuildID)
-	sendQuoteMessage(message.ChannelID, session, quote)
-}
-
-func addQuote(bm botdata.Manager, commandConfig CommandConfig, arguments []string, session *discordgo.Session, message *discordgo.MessageCreate) {
-	channel, err := session.State.Channel(message.ChannelID)
-	checkError(err, "Error accessing Channel: ")
-
-	if len(arguments) < 2 {
-		delivery := fmt.Sprintf("Missing arguments for Add.\n Use command \"%s%s <Mention User> <Quote>\".",
-			commandConfig.Prefix,
-			commandConfig.Add)
-		_, err = session.ChannelMessageSend(channel.ID, delivery)
-		checkErrorBenign(err, "Error sending add quote missing arg message: ")
-		return
-	}
-
-	speaker := message.Mentions[0]
-	submitter := message.Author
-	content := strings.Trim(strings.Join(arguments[1:], " "), `'"`)
-	quote := bm.AddQuote(content, *speaker, *submitter, channel.GuildID)
-
-	delivery := fmt.Sprintf("%s added the quote:\n\t%s: \"%s\"", quote.Submitter.Name, quote.Speaker.Name, quote.Content)
-	_, err = session.ChannelMessageSend(channel.ID, delivery)
-	checkErrorBenign(err, "Error sending add quote message: ")
 }
 
 func main() {

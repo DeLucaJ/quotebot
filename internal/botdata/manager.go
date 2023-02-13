@@ -102,6 +102,9 @@ func (bm Manager) AddQuote(content string, speaker discordgo.User, submitter dis
 
 	bm.InsertQuote(quote)
 
+	// Temporary Timestamp to account for the add event bug
+	quote.CreatedAt = time.Now()
+
 	return quote
 }
 
