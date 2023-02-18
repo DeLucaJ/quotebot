@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DeLucaJ/quotebot/internal/botdata"
+	"github.com/DeLucaJ/quotebot/internal/quoteData"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -60,9 +60,9 @@ func getConfig(file string) BotConfig {
 	return configuration
 }
 
-func quoteToMessage(session *discordgo.Session, quote botdata.Quote) discordgo.MessageSend {
+func quoteToMessage(session *discordgo.Session, quote quoteData.Quote) discordgo.MessageSend {
 	footer := discordgo.MessageEmbedFooter{
-		Text: fmt.Sprintf("Submitted by: %s", quote.Submitter.Name),
+		Text: fmt.Sprintf("Submitted by %s", quote.Submitter.Name),
 	}
 
 	speakerInfo, _ := session.User(quote.Speaker.DiscordID)
@@ -87,13 +87,13 @@ func quoteToMessage(session *discordgo.Session, quote botdata.Quote) discordgo.M
 	return messagePackage
 }
 
-func quoteToMessageWithContent(session *discordgo.Session, quote botdata.Quote, content string) discordgo.MessageSend {
+func quoteToMessageWithContent(session *discordgo.Session, quote quoteData.Quote, content string) discordgo.MessageSend {
 	quoteEmbed := quoteToMessage(session, quote)
 	quoteEmbed.Content = content
 	return quoteEmbed
 }
 
-func sendQuoteMessage(channelID string, session *discordgo.Session, quote botdata.Quote) {
+func sendQuoteMessage(channelID string, session *discordgo.Session, quote quoteData.Quote) {
 	channel, err := session.State.Channel(channelID)
 	checkError(err, "Error accessing Channel: ")
 	// Replace this with message send complex
@@ -102,17 +102,17 @@ func sendQuoteMessage(channelID string, session *discordgo.Session, quote botdat
 	checkErrorBenign(err, "Error sending quote message: ")
 }
 
-func sendRandomQuote(bm botdata.Manager, session *discordgo.Session, message *discordgo.MessageCreate) {
+func sendRandomQuote(bm quoteData.Manager, session *discordgo.Session, message *discordgo.MessageCreate) {
 	quote := bm.ChooseRandomQuote(message.GuildID)
 	sendQuoteMessage(message.ChannelID, session, quote)
 }
 
-func sendRandomQuoteByUser(bm botdata.Manager, session *discordgo.Session, message *discordgo.MessageCreate) {
+func sendRandomQuoteByUser(bm quoteData.Manager, session *discordgo.Session, message *discordgo.MessageCreate) {
 	quote := bm.ChooseRandomQuoteBySpeaker(message.Mentions[0].ID, message.GuildID)
 	sendQuoteMessage(message.ChannelID, session, quote)
 }
 
-func addQuote(bm botdata.Manager, commandConfig CommandConfig, arguments []string, session *discordgo.Session, message *discordgo.MessageCreate) {
+func addQuote(bm quoteData.Manager, commandConfig CommandConfig, arguments []string, session *discordgo.Session, message *discordgo.MessageCreate) {
 	channel, err := session.State.Channel(message.ChannelID)
 	checkError(err, "Error accessing Channel: ")
 
@@ -130,20 +130,20 @@ func addQuote(bm botdata.Manager, commandConfig CommandConfig, arguments []strin
 	content := strings.Trim(strings.Join(arguments[1:], " "), `'"`)
 	quote := bm.AddQuote(content, *speaker, *submitter, channel.GuildID)
 
-	quoteEmbed := quoteToMessageWithContent(session, quote, "Thank you for the new quote!")
+	quoteEmbed := quoteToMessageWithContent(session, quote, "Thanks for the new quote!")
 
 	_, err = session.ChannelMessageSendComplex(channel.ID, &quoteEmbed)
 	checkErrorBenign(err, "Error sending add quote message: ")
 }
 
-func ready(session *discordgo.Session, _ *discordgo.Ready) {
+func ready(session *discordgo.Session, readyEvent *discordgo.Ready) {
 	err := session.UpdateGameStatus(0, "q!")
 	if err != nil {
 		fmt.Println("Error updated Bot Status")
 	}
 }
 
-func guildCreateEvent(bm botdata.Manager) func(*discordgo.Session, *discordgo.GuildCreate) {
+func guildCreateEvent(bm quoteData.Manager, commandMap map[string][]string) func(*discordgo.Session, *discordgo.GuildCreate) {
 	return func(session *discordgo.Session, event *discordgo.GuildCreate) {
 		if event.Guild.Unavailable {
 			return
@@ -154,6 +154,8 @@ func guildCreateEvent(bm botdata.Manager) func(*discordgo.Session, *discordgo.Gu
 		}
 		fmt.Println("Login: ", event.Guild.Name)
 
+		commandMap[event.Guild.ID] = registerAllCommands(session, event.Guild.ID)
+
 		for _, channel := range event.Guild.Channels {
 			if channel.ID == event.Guild.ID {
 				_, _ = session.ChannelMessageSend(channel.ID, "QuoteBot is ready! Type q!")
@@ -163,7 +165,7 @@ func guildCreateEvent(bm botdata.Manager) func(*discordgo.Session, *discordgo.Gu
 	}
 }
 
-func messageCreateEvent(bm botdata.Manager, commandConfig CommandConfig) func(*discordgo.Session, *discordgo.MessageCreate) {
+func messageCreateEvent(bm quoteData.Manager, commandConfig CommandConfig) func(*discordgo.Session, *discordgo.MessageCreate) {
 	return func(session *discordgo.Session, message *discordgo.MessageCreate) {
 		// Check to see if the author is this bot
 		if message.Author.ID == session.State.User.ID {
@@ -209,33 +211,42 @@ func main() {
 	botConfig := getConfig(configFile)
 
 	// Starts the data manager for the bot
-	botManager := botdata.Start(botConfig.ConnectionString)
+	botManager := quoteData.Start(botConfig.ConnectionString)
 	// defers the graceful shutdown of the data manager
 	defer botManager.Shutdown()
 
 	// Initialize the Discord Bot
-	ds, err := discordgo.New("Bot " + botConfig.DiscordToken)
+	session, err := discordgo.New("Bot " + botConfig.DiscordToken)
 	checkError(err, "Error creating Discord Session: ")
+
+	// a map of registered commands by server ID
+	var commandMap = make(map[string][]string)
 
 	// EVENT HANDLING ---------------------------------------------------------
 	// Define Handlers for discord events.
 	messageCreate := messageCreateEvent(botManager, botConfig.CommandConfig)
-	guildCreate := guildCreateEvent(botManager)
+	guildCreate := guildCreateEvent(botManager, commandMap)
 
 	// Attach Handlers to the discord session
-	ds.AddHandler(ready)
-	ds.AddHandler(messageCreate)
-	ds.AddHandler(guildCreate)
+	session.AddHandler(ready)
+	session.AddHandler(messageCreate)
+	session.AddHandler(guildCreate)
+	session.AddHandler(interactionHandler)
 
 	// START SESSION ----------------------------------------------------------
 	// Open Discord session
-	err = ds.Open()
+	err = session.Open()
 	checkError(err, "Error opening Discord session: ")
+
 	// Defers a call to Close the Discord Session
 	defer func(ds *discordgo.Session) {
+		for guildID, commandIDs := range commandMap {
+			removeAllCommands(ds, guildID, commandIDs)
+		}
+
 		err := ds.Close()
 		checkError(err, "Error closing Discord session: ")
-	}(ds)
+	}(session)
 
 	// Start Message
 	fmt.Println("Welcome to QuoteBot X. Press CTRL+C to exit.")

@@ -1,4 +1,4 @@
-package botdata
+package quoteData
 
 import (
 	"gorm.io/gorm"
