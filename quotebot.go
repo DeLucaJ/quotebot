@@ -4,15 +4,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/DeLucaJ/quotebot/internal/data"
+	"github.com/bwmarrin/discordgo"
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
-	"time"
-
-	"github.com/DeLucaJ/quotebot/internal/quoteData"
-	"github.com/bwmarrin/discordgo"
 )
 
 // location of configuration file
@@ -39,12 +36,6 @@ func checkError(err error, message string) {
 	}
 }
 
-func checkErrorBenign(err error, message string) {
-	if err != nil {
-		fmt.Println(message + err.Error())
-	}
-}
-
 // Retrieves the Bot DiscordToken
 // Will eventually get the JSON configuration for quoteBot
 func getConfig(file string) BotConfig {
@@ -60,90 +51,14 @@ func getConfig(file string) BotConfig {
 	return configuration
 }
 
-func quoteToMessage(session *discordgo.Session, quote quoteData.Quote) discordgo.MessageSend {
-	footer := discordgo.MessageEmbedFooter{
-		Text: fmt.Sprintf("Submitted by %s", quote.Submitter.Name),
-	}
-
-	speakerInfo, _ := session.User(quote.Speaker.DiscordID)
-
-	thumbnail := discordgo.MessageEmbedThumbnail{
-		URL: speakerInfo.AvatarURL(""),
-	}
-
-	embed := discordgo.MessageEmbed{
-		Type:        discordgo.EmbedTypeRich,
-		Color:       speakerInfo.AccentColor,
-		Title:       fmt.Sprintf("%s", quote.Speaker.Name),
-		Description: fmt.Sprintf("\"%s\"", quote.Content),
-		Footer:      &footer,
-		Thumbnail:   &thumbnail,
-		Timestamp:   quote.CreatedAt.Format(time.RFC3339),
-	}
-
-	messagePackage := discordgo.MessageSend{
-		Embeds: []*discordgo.MessageEmbed{&embed},
-	}
-	return messagePackage
-}
-
-func quoteToMessageWithContent(session *discordgo.Session, quote quoteData.Quote, content string) discordgo.MessageSend {
-	quoteEmbed := quoteToMessage(session, quote)
-	quoteEmbed.Content = content
-	return quoteEmbed
-}
-
-func sendQuoteMessage(channelID string, session *discordgo.Session, quote quoteData.Quote) {
-	channel, err := session.State.Channel(channelID)
-	checkError(err, "Error accessing Channel: ")
-	// Replace this with message send complex
-	quoteEmbed := quoteToMessage(session, quote)
-	_, err = session.ChannelMessageSendComplex(channel.ID, &quoteEmbed)
-	checkErrorBenign(err, "Error sending quote message: ")
-}
-
-func sendRandomQuote(bm quoteData.Manager, session *discordgo.Session, message *discordgo.MessageCreate) {
-	quote := bm.ChooseRandomQuote(message.GuildID)
-	sendQuoteMessage(message.ChannelID, session, quote)
-}
-
-func sendRandomQuoteByUser(bm quoteData.Manager, session *discordgo.Session, message *discordgo.MessageCreate) {
-	quote := bm.ChooseRandomQuoteBySpeaker(message.Mentions[0].ID, message.GuildID)
-	sendQuoteMessage(message.ChannelID, session, quote)
-}
-
-func addQuote(bm quoteData.Manager, commandConfig CommandConfig, arguments []string, session *discordgo.Session, message *discordgo.MessageCreate) {
-	channel, err := session.State.Channel(message.ChannelID)
-	checkError(err, "Error accessing Channel: ")
-
-	if len(arguments) < 2 {
-		delivery := fmt.Sprintf("Missing arguments for Add.\n Use command \"%s%s <Mention User> <Quote>\".",
-			commandConfig.Prefix,
-			commandConfig.Add)
-		_, err = session.ChannelMessageSend(channel.ID, delivery)
-		checkErrorBenign(err, "Error sending add quote missing arg message: ")
-		return
-	}
-
-	speaker := message.Mentions[0]
-	submitter := message.Author
-	content := strings.Trim(strings.Join(arguments[1:], " "), `'"`)
-	quote := bm.AddQuote(content, *speaker, *submitter, channel.GuildID)
-
-	quoteEmbed := quoteToMessageWithContent(session, quote, "Thanks for the new quote!")
-
-	_, err = session.ChannelMessageSendComplex(channel.ID, &quoteEmbed)
-	checkErrorBenign(err, "Error sending add quote message: ")
-}
-
-func ready(session *discordgo.Session, readyEvent *discordgo.Ready) {
+func ready(session *discordgo.Session, _ *discordgo.Ready) {
 	err := session.UpdateGameStatus(0, "q!")
 	if err != nil {
 		fmt.Println("Error updated Bot Status")
 	}
 }
 
-func guildCreateEvent(bm quoteData.Manager, commandMap map[string][]string) func(*discordgo.Session, *discordgo.GuildCreate) {
+func guildCreateHandler(bm data.Manager, commandMap map[string][]string) func(*discordgo.Session, *discordgo.GuildCreate) {
 	return func(session *discordgo.Session, event *discordgo.GuildCreate) {
 		if event.Guild.Unavailable {
 			return
@@ -165,53 +80,13 @@ func guildCreateEvent(bm quoteData.Manager, commandMap map[string][]string) func
 	}
 }
 
-func messageCreateEvent(bm quoteData.Manager, commandConfig CommandConfig) func(*discordgo.Session, *discordgo.MessageCreate) {
-	return func(session *discordgo.Session, message *discordgo.MessageCreate) {
-		// Check to see if the author is this bot
-		if message.Author.ID == session.State.User.ID {
-			return
-		}
-
-		// check if it's a command
-		if strings.HasPrefix(message.Content, commandConfig.Prefix) {
-			// Get the current discord Channel
-			channel, err := session.State.Channel(message.ChannelID)
-			checkError(err, "Error accessing Channel: ")
-
-			// remove the prefix and delineate the string into separate words
-			content := strings.TrimPrefix(message.Content, commandConfig.Prefix)
-			arguments := strings.Split(content, " ")
-
-			// if there are arguments, parse them
-			if len(arguments) > 0 {
-				switch arguments[0] {
-				case commandConfig.Add:
-					addQuote(bm, commandConfig, arguments[1:], session, message)
-					break
-				case commandConfig.By:
-					sendRandomQuoteByUser(bm, session, message)
-					break
-				default:
-					sendRandomQuote(bm, session, message)
-				}
-			} else {
-				sendRandomQuote(bm, session, message)
-			}
-			err = session.ChannelMessageDelete(channel.ID, message.ID)
-			checkErrorBenign(err, "Error deleting message: ")
-			return
-		}
-
-	}
-}
-
 func main() {
 	// INITIALIZATION ---------------------------------------------------------
 	// Store the application configuration
 	botConfig := getConfig(configFile)
 
 	// Starts the data manager for the bot
-	botManager := quoteData.Start(botConfig.ConnectionString)
+	botManager := data.Start(botConfig.ConnectionString)
 	// defers the graceful shutdown of the data manager
 	defer botManager.Shutdown()
 
@@ -224,14 +99,13 @@ func main() {
 
 	// EVENT HANDLING ---------------------------------------------------------
 	// Define Handlers for discord events.
-	messageCreate := messageCreateEvent(botManager, botConfig.CommandConfig)
-	guildCreate := guildCreateEvent(botManager, commandMap)
+	guildCreate := guildCreateHandler(botManager, commandMap)
+	interactionCreate := interactionCreateHandler(botManager)
 
 	// Attach Handlers to the discord session
 	session.AddHandler(ready)
-	session.AddHandler(messageCreate)
 	session.AddHandler(guildCreate)
-	session.AddHandler(interactionHandler)
+	session.AddHandler(interactionCreate)
 
 	// START SESSION ----------------------------------------------------------
 	// Open Discord session

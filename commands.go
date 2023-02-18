@@ -69,9 +69,8 @@ var quoteSlashCommands = discordgo.ApplicationCommand{
 }
 
 var quoteThisMessageCommand = discordgo.ApplicationCommand{
-	Type:        discordgo.MessageApplicationCommand,
-	Name:        "quote-this",
-	Description: "Turns the selected message into a quote",
+	Type: discordgo.MessageApplicationCommand,
+	Name: "quote-this",
 }
 
 var allCommands = []*discordgo.ApplicationCommand{
@@ -79,17 +78,15 @@ var allCommands = []*discordgo.ApplicationCommand{
 	&quoteThisMessageCommand,
 }
 
-var commandHandlers = map[string]func(session *discordgo.Session, icEvent *discordgo.InteractionCreate){}
-
 func registerAllCommands(session *discordgo.Session, guildID string) []string {
 	log.Println("Registering commands...")
 	registeredCommandIDs := make([]string, len(allCommands))
 	for index, command := range allCommands {
-		command, err := session.ApplicationCommandCreate(session.State.User.ID, guildID, command)
+		registeredCommand, err := session.ApplicationCommandCreate(session.State.User.ID, guildID, command)
 		if err != nil {
 			log.Panicf("Cannot create '%v' command: %v\n", command.Name, err)
 		}
-		registeredCommandIDs[index] = command.ID
+		registeredCommandIDs[index] = registeredCommand.ID
 	}
 	return registeredCommandIDs
 }
@@ -102,11 +99,5 @@ func removeAllCommands(session *discordgo.Session, guildID string, registeredCom
 		if err != nil {
 			log.Panicf("Cannot delete '%v' command: %v", commandID, err)
 		}
-	}
-}
-
-func interactionHandler(session *discordgo.Session, icEvent *discordgo.InteractionCreate) {
-	if handler, ok := commandHandlers[icEvent.ApplicationCommandData().Name]; ok {
-		handler(session, icEvent)
 	}
 }
