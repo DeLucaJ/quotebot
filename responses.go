@@ -8,6 +8,10 @@ import (
 )
 
 func multiQuoteResponse(session *discordgo.Session, quotes []data.Quote) discordgo.InteractionResponse {
+	if quotes[0].SpeakerID == 0 {
+		return emptyResponse()
+	}
+
 	var quoteEmbeds = make([]*discordgo.MessageEmbed, len(quotes))
 
 	for index, quote := range quotes {
@@ -23,6 +27,10 @@ func multiQuoteResponse(session *discordgo.Session, quotes []data.Quote) discord
 }
 
 func singleQuoteResponse(session *discordgo.Session, quote data.Quote) discordgo.InteractionResponse {
+	if quote.SpeakerID == 0 {
+		return emptyResponse()
+	}
+
 	quoteEmbeds := []*discordgo.MessageEmbed{
 		quoteToEmbed(session, quote),
 	}
@@ -31,6 +39,15 @@ func singleQuoteResponse(session *discordgo.Session, quote data.Quote) discordgo
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Embeds: quoteEmbeds,
+		},
+	}
+}
+
+func emptyResponse() discordgo.InteractionResponse {
+	return discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: "Sorry, there are no quotes matching your search",
 		},
 	}
 }

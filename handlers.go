@@ -36,6 +36,7 @@ func quoteGetHandler(manager data.Manager, session *discordgo.Session, interacti
 	quotes := manager.GetNRandomQuotes(interaction.GuildID, amount)
 
 	response := multiQuoteResponse(session, quotes)
+
 	err := session.InteractionRespond(interaction, &response)
 	if err != nil {
 		log.Panicf("Unable to send response: %v", err)
@@ -57,8 +58,6 @@ func quoteByHandler(manager data.Manager, session *discordgo.Session, interactio
 	}
 
 	quotes := manager.GetNRandomQuotesBySpeaker(speaker.ID, interaction.GuildID, amount)
-
-	log.Println(quotes)
 
 	response := multiQuoteResponse(session, quotes)
 
