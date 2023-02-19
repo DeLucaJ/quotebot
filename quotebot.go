@@ -51,35 +51,6 @@ func getConfig(file string) BotConfig {
 	return configuration
 }
 
-func ready(session *discordgo.Session, _ *discordgo.Ready) {
-	err := session.UpdateGameStatus(0, "q!")
-	if err != nil {
-		fmt.Println("Error updated Bot Status")
-	}
-}
-
-func guildCreateHandler(bm data.Manager, commandMap map[string][]string) func(*discordgo.Session, *discordgo.GuildCreate) {
-	return func(session *discordgo.Session, event *discordgo.GuildCreate) {
-		if event.Guild.Unavailable {
-			return
-		}
-
-		if !bm.GuildExists(*event.Guild) {
-			bm.AddGuild(*event.Guild)
-		}
-		fmt.Println("Login: ", event.Guild.Name)
-
-		commandMap[event.Guild.ID] = registerAllCommands(session, event.Guild.ID)
-
-		for _, channel := range event.Guild.Channels {
-			if channel.ID == event.Guild.ID {
-				_, _ = session.ChannelMessageSend(channel.ID, "QuoteBot is ready! Type q!")
-				return
-			}
-		}
-	}
-}
-
 func main() {
 	// INITIALIZATION ---------------------------------------------------------
 	// Store the application configuration
@@ -100,11 +71,17 @@ func main() {
 	// EVENT HANDLING ---------------------------------------------------------
 	// Define Handlers for discord events.
 	guildCreate := guildCreateHandler(botManager, commandMap)
+	guildUpdate := guildUpdateHandler(botManager)
+	memberAdd := memberAddHandler(botManager)
+	memberUpdate := memberUpdateHandler(botManager)
 	interactionCreate := interactionCreateHandler(botManager)
 
 	// Attach Handlers to the discord session
 	session.AddHandler(ready)
 	session.AddHandler(guildCreate)
+	session.AddHandler(guildUpdate)
+	session.AddHandler(memberAdd)
+	session.AddHandler(memberUpdate)
 	session.AddHandler(interactionCreate)
 
 	// START SESSION ----------------------------------------------------------

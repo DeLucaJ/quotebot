@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/DeLucaJ/quotebot/internal/data"
 	"github.com/bwmarrin/discordgo"
 	"log"
@@ -81,7 +82,7 @@ func quoteAddHandler(manager data.Manager, session *discordgo.Session, interacti
 		content = strings.Trim(contentOption.StringValue(), " ")
 	}
 
-	quote := manager.AddQuote(content, *speaker, *submitter, interaction.GuildID)
+	quote := manager.AddQuote(content, speaker, submitter, interaction.GuildID)
 	response := singleQuoteResponse(session, quote)
 	err := session.InteractionRespond(interaction, &response)
 	if err != nil {
@@ -116,7 +117,7 @@ func quoteThisCommandHandler(manager data.Manager, session *discordgo.Session, i
 
 	log.Println(message.Content)
 
-	quote := manager.AddQuote(message.Content, *message.Author, *icEvent.Interaction.Member.User, icEvent.Interaction.GuildID)
+	quote := manager.AddQuote(message.Content, message.Author, icEvent.Interaction.Member.User, icEvent.Interaction.GuildID)
 
 	response := singleQuoteResponse(session, quote)
 
@@ -136,5 +137,60 @@ func interactionCreateHandler(manager data.Manager) func(*discordgo.Session, *di
 		if handler, ok := commandHandlers[icEvent.ApplicationCommandData().Name]; ok {
 			handler(manager, session, icEvent)
 		}
+	}
+}
+
+func ready(session *discordgo.Session, _ *discordgo.Ready) {
+	err := session.UpdateGameStatus(0, "/quote")
+	if err != nil {
+		fmt.Println("Error updated Bot Status")
+	}
+}
+
+func guildCreateHandler(manager data.Manager, commandMap map[string][]string) func(*discordgo.Session, *discordgo.GuildCreate) {
+	return func(session *discordgo.Session, event *discordgo.GuildCreate) {
+		if event.Guild.Unavailable {
+			return
+		}
+
+		if !manager.GuildExists(event.Guild) {
+			manager.AddGuild(event.Guild)
+		}
+		fmt.Println("Login: ", event.Guild.Name)
+
+		commandMap[event.Guild.ID] = registerAllCommands(session, event.Guild.ID)
+
+		for _, channel := range event.Guild.Channels {
+			if channel.ID == event.Guild.ID {
+				_, _ = session.ChannelMessageSend(channel.ID, "QuoteBot is ready! Type q!")
+				return
+			}
+		}
+	}
+}
+
+func guildUpdateHandler(manager data.Manager) func(*discordgo.Session, *discordgo.GuildUpdate) {
+	return func(session *discordgo.Session, update *discordgo.GuildUpdate) {
+		manager.UpdateGuild(update.Guild)
+	}
+}
+
+func memberAddHandler(manager data.Manager) func(*discordgo.Session, *discordgo.GuildMemberAdd) {
+	return func(session *discordgo.Session, add *discordgo.GuildMemberAdd) {
+		guild := manager.FindGuild(add.GuildID)
+
+		if manager.UserExists(add.User.ID, guild) {
+			return
+		}
+
+		manager.AddUser(add.User, guild)
+	}
+}
+
+func memberUpdateHandler(manager data.Manager) func(*discordgo.Session, *discordgo.GuildMemberUpdate) {
+	return func(session *discordgo.Session, update *discordgo.GuildMemberUpdate) {
+		guild := manager.FindGuild(update.GuildID)
+
+		manager.UpdateGuildUser(update.User, guild)
 	}
 }
