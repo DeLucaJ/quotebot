@@ -159,9 +159,13 @@ func guildCreateHandler(manager data.Manager, commandMap map[string][]string) fu
 		}
 		guild := manager.FindGuild(event.Guild.ID)
 
-		fmt.Println("Login: ", guild.Name)
+		log.Println("Login: ", guild.Name)
 
-		for _, member := range event.Guild.Members {
+		members, err := session.GuildMembers(event.Guild.ID, "0", 1000)
+		if err != nil {
+			log.Printf("Failed to fetch members of %s: %v", event.Guild.Name, err)
+		}
+		for _, member := range members {
 			if manager.UserExists(member.User.ID, guild) {
 				continue
 			}
