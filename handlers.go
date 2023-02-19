@@ -16,16 +16,16 @@ func quoteSlashCommandHandler(manager data.Manager, session *discordgo.Session, 
 	options := icEvent.ApplicationCommandData().Options
 
 	switch options[0].Name {
-	case "random":
-		quoteRandomHandler(manager, session, icEvent.Interaction, options[0])
-	case "add":
+	case quoteGet.Name:
+		quoteGetHandler(manager, session, icEvent.Interaction, options[0])
+	case quoteAdd.Name:
 		quoteAddHandler(manager, session, icEvent.Interaction, options[0])
-	case "by":
+	case quoteBy.Name:
 		quoteByHandler(manager, session, icEvent.Interaction, options[0])
 	}
 }
 
-func quoteRandomHandler(manager data.Manager, session *discordgo.Session, interaction *discordgo.Interaction, optionData *discordgo.ApplicationCommandInteractionDataOption) {
+func quoteGetHandler(manager data.Manager, session *discordgo.Session, interaction *discordgo.Interaction, optionData *discordgo.ApplicationCommandInteractionDataOption) {
 	optionMap := makeOptionMap(optionData.Options)
 
 	amount := minAmount

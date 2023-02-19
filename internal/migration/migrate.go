@@ -12,6 +12,7 @@ const migrateMapFile string = "./legacyData/migrate-data.json"
 const legacyQuotesFile string = "./legacyData/quotes.json"
 
 type MigrateData struct {
+	Done        bool      `json:"done"`
 	BotUserName string    `json:"bot-user-name"`
 	GuildName   string    `json:"guild-name"`
 	UserMap     []NameMap `json:"user-map"`
@@ -59,6 +60,10 @@ func AttemptMigrateLegacyQuotes(manager data.Manager, session *discordgo.Session
 		return
 	}
 
+	if migrateData.Done {
+		return
+	}
+
 	legacyQuotesRaw, err := os.ReadFile(legacyQuotesFile)
 	if err != nil {
 		log.Panicf("Failed to read legacy quotes file")
@@ -92,5 +97,17 @@ func AttemptMigrateLegacyQuotes(manager data.Manager, session *discordgo.Session
 			_, _ = session.ChannelMessageSend(channel.ID, "Legacy quotes have been migrated to QuoteBotX!")
 			break
 		}
+	}
+
+	migrateData.Done = true
+
+	migrateDataJson, err := json.MarshalIndent(migrateData, "", "\t")
+	if err != nil {
+		log.Printf("Error marhsalling migrate data JSON")
+	}
+
+	err = os.WriteFile(migrateMapFile, migrateDataJson, 0644)
+	if err != nil {
+		log.Printf("Error writing migrate data JSON to file")
 	}
 }

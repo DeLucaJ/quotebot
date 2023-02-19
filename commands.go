@@ -5,15 +5,15 @@ import (
 	"log"
 )
 
-var quoteRandom = discordgo.ApplicationCommandOption{
+var quoteGet = discordgo.ApplicationCommandOption{
 	Type:        discordgo.ApplicationCommandOptionSubCommand,
-	Name:        "random",
-	Description: "send a random quote",
+	Name:        "get",
+	Description: "get a random quote",
 	Options: []*discordgo.ApplicationCommandOption{
 		{
 			Type:        discordgo.ApplicationCommandOptionInteger,
 			Name:        "amount",
-			Description: "the number of quotes to send (max 10)",
+			Description: "the number of quotes to get (max 10)",
 		},
 	},
 }
@@ -62,7 +62,7 @@ var quoteSlashCommands = discordgo.ApplicationCommand{
 	Name:        "quote",
 	Description: "A command for managing and displaying quotes from QuoteBot",
 	Options: []*discordgo.ApplicationCommandOption{
-		&quoteRandom,
+		&quoteGet,
 		&quoteAdd,
 		&quoteBy,
 	},
