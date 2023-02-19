@@ -7,11 +7,15 @@ import (
 	"time"
 )
 
-func multiQuoteResponse(session *discordgo.Session, quotes []data.Quote) discordgo.InteractionResponse {
+func getQuotesResponse(session *discordgo.Session, quotes []data.Quote) discordgo.InteractionResponse {
 	if quotes[0].SpeakerID == 0 {
-		return emptyResponse()
+		return emptyResponse("Sorry, there are no quotes matching your search")
+	} else {
+		return multiQuoteResponse(session, quotes)
 	}
+}
 
+func multiQuoteResponse(session *discordgo.Session, quotes []data.Quote) discordgo.InteractionResponse {
 	var quoteEmbeds = make([]*discordgo.MessageEmbed, len(quotes))
 
 	for index, quote := range quotes {
@@ -26,9 +30,17 @@ func multiQuoteResponse(session *discordgo.Session, quotes []data.Quote) discord
 	}
 }
 
+func addQuoteResponse(session *discordgo.Session, quote data.Quote) discordgo.InteractionResponse {
+	if quote.SpeakerID == 0 {
+		return emptyResponse(quote.Content)
+	} else {
+		return singleQuoteResponse(session, quote)
+	}
+}
+
 func singleQuoteResponse(session *discordgo.Session, quote data.Quote) discordgo.InteractionResponse {
 	if quote.SpeakerID == 0 {
-		return emptyResponse()
+		return emptyResponse("Sorry, there are no quotes matching your search")
 	}
 
 	quoteEmbeds := []*discordgo.MessageEmbed{
@@ -43,11 +55,11 @@ func singleQuoteResponse(session *discordgo.Session, quote data.Quote) discordgo
 	}
 }
 
-func emptyResponse() discordgo.InteractionResponse {
+func emptyResponse(content string) discordgo.InteractionResponse {
 	return discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: "Sorry, there are no quotes matching your search",
+			Content: content,
 		},
 	}
 }

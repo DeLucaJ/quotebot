@@ -34,13 +34,18 @@ func itsNotTime(guildName string) bool {
 
 var migrateData MigrateData
 
-func legacyToModern(manager data.Manager, migrateMap map[string]string, legacyQuote LegacyQuote, guild data.Guild) data.Quote {
-	submitter := manager.FindUserByName(migrateData.BotUserName, guild.ID)
+func legacyToModern(manager data.Manager, migrateMap map[string]string, legacyQuote LegacyQuote, guild data.Guild) {
+	if !manager.UserExistsByName(migrateMap[legacyQuote.Speaker], guild) {
+		return
+	}
+	if len(legacyQuote.Text) == 0 {
+		return
+	}
+
 	speaker := manager.FindUserByName(migrateMap[legacyQuote.Speaker], guild.ID)
+	submitter := manager.FindUserByName(migrateData.BotUserName, guild.ID)
 
-	quote := manager.AddLegacyQuote(legacyQuote.Text, speaker, submitter, guild)
-
-	return quote
+	manager.AddLegacyQuote(legacyQuote.Text, speaker, submitter, guild)
 }
 
 func init() {

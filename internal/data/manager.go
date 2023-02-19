@@ -24,7 +24,7 @@ type Manager struct {
 //
 //	uri string: the uri for the Database from config.json
 func Start(dsn string) Manager {
-	fmt.Println("Initializing Postgresql Client")
+	log.Println("Initializing Postgresql Client")
 
 	//// Connect to Postgres
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -33,13 +33,13 @@ func Start(dsn string) Manager {
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		defer cancel()
-		fmt.Println("Error connecting to Postgres Client: " + err.Error())
+		log.Println("Error connecting to Postgres Client: " + err.Error())
 	}
 
 	// Initialize the Database
 	err = db.AutoMigrate(&Guild{}, &User{}, &Quote{})
 	if err != nil {
-		fmt.Println("Error creating Database: " + err.Error())
+		log.Println("Error creating Database: " + err.Error())
 	}
 
 	// initializes the singleton Manager
@@ -78,6 +78,12 @@ func (manager Manager) AddUser(user *discordgo.User, guild Guild) {
 
 // AddQuote - adds a Quote to the Database
 func (manager Manager) AddQuote(content string, speaker *discordgo.User, submitter *discordgo.User, guildID string) Quote {
+	if len(content) == 0 {
+		return Quote{
+			Content: "Sorry, but I can't accept empty quotes or quotes with only embedded content",
+		}
+	}
+
 	guildEntry := manager.FindGuild(guildID)
 
 	// Check if speaker user exists, if not make that user
@@ -85,6 +91,12 @@ func (manager Manager) AddQuote(content string, speaker *discordgo.User, submitt
 		manager.AddUser(speaker, guildEntry)
 	}
 	speakerEntry := manager.FindUser(speaker.ID, guildEntry.ID)
+
+	if manager.QuoteExists(Quote{Content: content, SpeakerID: speakerEntry.ID}) {
+		return Quote{
+			Content: "Sorry, but a quote with that content already exists for this user",
+		}
+	}
 
 	// Check if submitter user exists, if not make that user
 	if !manager.UserExists(submitter.ID, guildEntry) {
@@ -110,6 +122,18 @@ func (manager Manager) AddQuote(content string, speaker *discordgo.User, submitt
 }
 
 func (manager Manager) AddLegacyQuote(content string, speaker User, submitter User, guild Guild) Quote {
+	if len(content) == 0 {
+		return Quote{
+			Content: "Sorry, but I can't accept empty quotes or quotes with only embedded content",
+		}
+	}
+
+	if manager.QuoteExists(Quote{Content: content, SpeakerID: speaker.ID}) {
+		return Quote{
+			Content: "Sorry, but a quote with that content already exists for this user",
+		}
+	}
+
 	quote := Quote{
 		Content:     content,
 		SpeakerID:   speaker.ID,
@@ -179,11 +203,16 @@ func (manager Manager) chooseNRandomQuotes(quotes []Quote, amount int) []Quote {
 	for len(selectedQuotes) < amount && len(unselectedQuotes) > 0 {
 		index := rand.Intn(len(unselectedQuotes))
 		quote := unselectedQuotes[index]
-		log.Println(quote.Speaker.Name)
 		selectedQuotes = append(selectedQuotes, quote)
 		unselectedQuotes = append(unselectedQuotes[:index], unselectedQuotes[index+1:]...)
 	}
 	return selectedQuotes
+}
+
+func (manager Manager) QuoteExists(query Quote) bool {
+	var existing Quote
+	result := manager.Database.Where(&query).First(&existing)
+	return result.RowsAffected > 0
 }
 
 func (manager Manager) GuildExists(guild *discordgo.Guild) bool {
@@ -195,7 +224,7 @@ func (manager Manager) GuildExistsByID(guildID string) bool {
 	var existing Guild
 	result := manager.Database.Where(&Guild{DiscordID: guildID}).First(&existing)
 	if result.Error != nil {
-		fmt.Println("Error checking for guild existence: ", result.Error)
+		log.Println("Error checking for guild existence: ", result.Error)
 	}
 	return result.RowsAffected > 0
 }
@@ -205,7 +234,7 @@ func (manager Manager) UserExists(userID string, guild Guild) bool {
 	var existing User
 	result := manager.Database.Where(&User{GuildID: guild.ID, DiscordID: userID}).First(&existing)
 	if result.Error != nil {
-		fmt.Println("Error checking for user existence: ", result.Error)
+		log.Println("Error checking for user existence: ", result.Error)
 	}
 	return result.RowsAffected > 0
 }
@@ -214,7 +243,7 @@ func (manager Manager) UserExistsByName(userName string, guild Guild) bool {
 	var existing User
 	result := manager.Database.Where(&User{GuildID: guild.ID, Name: userName}).First(&existing)
 	if result.Error != nil {
-		fmt.Println("Error checking for user existence: ", result.Error)
+		log.Println("Error checking for user existence: ", result.Error)
 	}
 	return result.RowsAffected > 0
 }
@@ -224,11 +253,11 @@ func (manager Manager) UserExistsByName(userName string, guild Guild) bool {
 func (manager Manager) insertGuild(guild Guild) {
 	result := manager.Database.Create(&guild)
 	if result.Error != nil {
-		fmt.Println("Error inserting guild: ", result.Error)
+		log.Println("Error inserting guild: ", result.Error)
 		panic(result.Error)
 	}
 
-	fmt.Println("Guild Add: ", guild.Name, result.Name())
+	log.Println("Guild Added: ", guild.Name, result.Name())
 }
 
 // InsertUser adds a User to the database
@@ -237,9 +266,9 @@ func (manager Manager) insertUser(user User) {
 	// insert document into Database
 	result := manager.Database.Create(&user)
 	if result.Error != nil {
-		fmt.Println("Error inserting user: ", result.Error)
+		log.Println("Error inserting user: ", result.Error)
 	}
-	fmt.Println("User Added: ", user.Name, result.Name())
+	log.Println("User Added: ", user.Name, result.Name())
 }
 
 // InsertQuote adds a Quote to the database
@@ -248,9 +277,9 @@ func (manager Manager) insertQuote(quote Quote) {
 	//insert quote into DB
 	result := manager.Database.Create(&quote)
 	if result.Error != nil {
-		fmt.Println("Error inserting quote: ", result.Error)
+		log.Println("Error inserting quote: ", result.Error)
 	}
-	fmt.Println("Quote Added: ", result.Name())
+	log.Printf("Quote Added: \"%s\" - %s, submitted by %s", quote.Content, quote.Speaker.Name, quote.Submitter.Name)
 }
 
 func (manager Manager) FindGuild(guildID string) Guild {
@@ -263,7 +292,7 @@ func (manager Manager) FindGuild(guildID string) Guild {
 		First(&guildEntry)
 
 	if result.Error != nil {
-		fmt.Println(fmt.Sprintf("Error retrieving guild of ID %s: %s", guildID, result.Error))
+		log.Println(fmt.Sprintf("Error retrieving guild of ID %s: %s", guildID, result.Error))
 	}
 	return guildEntry
 }
@@ -272,7 +301,7 @@ func (manager Manager) FindUser(userID string, guildID uint) User {
 	var userEntry User
 	result := manager.Database.Where(&User{DiscordID: userID, GuildID: guildID}).First(&userEntry)
 	if result.Error != nil {
-		fmt.Println(fmt.Sprintf("Error retrieving user of ID %s: %s", userID, result.Error))
+		log.Println(fmt.Sprintf("Error retrieving user of ID %s: %s", userID, result.Error))
 	}
 	return userEntry
 }
@@ -281,7 +310,7 @@ func (manager Manager) FindUserByName(userName string, guildID uint) User {
 	var userEntry User
 	result := manager.Database.Where(&User{Name: userName, GuildID: guildID}).First(&userEntry)
 	if result.Error != nil {
-		fmt.Println(fmt.Sprintf("Error retrieving user of Name %s: %s", userName, result.Error))
+		log.Println(fmt.Sprintf("Error retrieving user of Name %s: %s", userName, result.Error))
 	}
 	return userEntry
 }
@@ -294,7 +323,7 @@ func (manager Manager) FindQuote(query *Quote) Quote {
 		First(&quoteEntry)
 
 	if result.Error != nil {
-		fmt.Println("Error retrieving quote", result.Error)
+		log.Println("Error retrieving quote", result.Error)
 	}
 	return quoteEntry
 }
@@ -307,7 +336,7 @@ func (manager Manager) FindManyQuotes(query *Quote) []Quote {
 		Find(&quotes)
 
 	if result.Error != nil {
-		fmt.Println("Error retrieving quotes", result.Error)
+		log.Println("Error retrieving quotes", result.Error)
 	}
 
 	return quotes

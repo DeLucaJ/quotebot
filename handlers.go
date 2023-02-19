@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/DeLucaJ/quotebot/internal/data"
 	"github.com/DeLucaJ/quotebot/internal/migration"
 	"github.com/bwmarrin/discordgo"
@@ -35,7 +34,7 @@ func quoteGetHandler(manager data.Manager, session *discordgo.Session, interacti
 	}
 	quotes := manager.GetNRandomQuotes(interaction.GuildID, amount)
 
-	response := multiQuoteResponse(session, quotes)
+	response := getQuotesResponse(session, quotes)
 
 	err := session.InteractionRespond(interaction, &response)
 	if err != nil {
@@ -59,7 +58,7 @@ func quoteByHandler(manager data.Manager, session *discordgo.Session, interactio
 
 	quotes := manager.GetNRandomQuotesBySpeaker(speaker.ID, interaction.GuildID, amount)
 
-	response := multiQuoteResponse(session, quotes)
+	response := getQuotesResponse(session, quotes)
 
 	err := session.InteractionRespond(interaction, &response)
 	if err != nil {
@@ -83,7 +82,9 @@ func quoteAddHandler(manager data.Manager, session *discordgo.Session, interacti
 	}
 
 	quote := manager.AddQuote(content, speaker, submitter, interaction.GuildID)
-	response := singleQuoteResponse(session, quote)
+
+	response := addQuoteResponse(session, quote)
+
 	err := session.InteractionRespond(interaction, &response)
 	if err != nil {
 		log.Panicf("Unable to send response: %v", err)
@@ -119,7 +120,7 @@ func quoteThisCommandHandler(manager data.Manager, session *discordgo.Session, i
 
 	quote := manager.AddQuote(message.Content, message.Author, icEvent.Interaction.Member.User, icEvent.Interaction.GuildID)
 
-	response := singleQuoteResponse(session, quote)
+	response := addQuoteResponse(session, quote)
 
 	err = session.InteractionRespond(icEvent.Interaction, &response)
 	if err != nil {
@@ -143,7 +144,7 @@ func interactionCreateHandler(manager data.Manager) func(*discordgo.Session, *di
 func ready(session *discordgo.Session, _ *discordgo.Ready) {
 	err := session.UpdateGameStatus(0, "/quote")
 	if err != nil {
-		fmt.Println("Error updated Bot Status")
+		log.Println("Error updated Bot Status")
 	}
 }
 

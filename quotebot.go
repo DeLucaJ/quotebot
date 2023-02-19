@@ -3,7 +3,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/DeLucaJ/quotebot/internal/data"
 	"github.com/bwmarrin/discordgo"
 	"log"
@@ -24,7 +23,7 @@ type BotConfig struct {
 // Used for general error checking and panicking
 func checkError(err error, message string) {
 	if err != nil {
-		fmt.Println(message + err.Error())
+		log.Println(message + err.Error())
 		log.Fatal(err)
 	}
 }
@@ -93,7 +92,7 @@ func main() {
 	}(session)
 
 	// Start Message
-	fmt.Println("Welcome to QuoteBot X. Press CTRL+C to exit.")
+	log.Println("Welcome to QuoteBot X. Press CTRL+C to exit.")
 
 	// Creates Signal Interrupt Channels
 	sc := make(chan os.Signal, 1)
