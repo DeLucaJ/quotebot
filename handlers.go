@@ -3,12 +3,13 @@ package main
 import (
 	"fmt"
 	"github.com/DeLucaJ/quotebot/internal/data"
+	"github.com/DeLucaJ/quotebot/internal/migration"
 	"github.com/bwmarrin/discordgo"
 	"log"
 	"strings"
 )
 
-const maxAmount = 20
+const maxAmount = 10
 const minAmount = 1
 
 func quoteSlashCommandHandler(manager data.Manager, session *discordgo.Session, icEvent *discordgo.InteractionCreate) {
@@ -33,8 +34,8 @@ func quoteRandomHandler(manager data.Manager, session *discordgo.Session, intera
 		amount = clampAmount(int(amountOption.IntValue()))
 	}
 	quotes := manager.GetNRandomQuotes(interaction.GuildID, amount)
-	response := multiQuoteResponse(session, quotes)
 
+	response := multiQuoteResponse(session, quotes)
 	err := session.InteractionRespond(interaction, &response)
 	if err != nil {
 		log.Panicf("Unable to send response: %v", err)
@@ -156,14 +157,25 @@ func guildCreateHandler(manager data.Manager, commandMap map[string][]string) fu
 		if !manager.GuildExists(event.Guild) {
 			manager.AddGuild(event.Guild)
 		}
-		fmt.Println("Login: ", event.Guild.Name)
+		guild := manager.FindGuild(event.Guild.ID)
+
+		fmt.Println("Login: ", guild.Name)
+
+		for _, member := range event.Guild.Members {
+			if manager.UserExists(member.User.ID, guild) {
+				continue
+			}
+			manager.AddUser(member.User, guild)
+		}
 
 		commandMap[event.Guild.ID] = registerAllCommands(session, event.Guild.ID)
 
+		migration.AttemptMigrateLegacyQuotes(manager, session, event)
+
 		for _, channel := range event.Guild.Channels {
 			if channel.ID == event.Guild.ID {
-				_, _ = session.ChannelMessageSend(channel.ID, "QuoteBot is ready! Type q!")
-				return
+				_, _ = session.ChannelMessageSend(channel.ID, "QuoteBot is ready! Type /quote")
+				break
 			}
 		}
 	}

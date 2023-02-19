@@ -18,3 +18,4 @@ config.json
 # vendor/
 /builds/
 .idea/
+/legacyData

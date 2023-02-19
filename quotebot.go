@@ -15,17 +15,10 @@ import (
 // location of configuration file
 const configFile string = "./config.json"
 
-type CommandConfig struct {
-	Prefix string `json:"prefix"`
-	Add    string `json:"add"`
-	By     string `json:"by"`
-}
-
 // BotConfig internal struct for configuration management
 type BotConfig struct {
-	DiscordToken     string        `json:"discord-token"`
-	ConnectionString string        `json:"connection-string"`
-	CommandConfig    CommandConfig `json:"command-config"`
+	DiscordToken     string `json:"discord-token"`
+	ConnectionString string `json:"connection-string"`
 }
 
 // Used for general error checking and panicking

@@ -13,7 +13,7 @@ var quoteRandom = discordgo.ApplicationCommandOption{
 		{
 			Type:        discordgo.ApplicationCommandOptionInteger,
 			Name:        "amount",
-			Description: "the number of quotes to send (max 20)",
+			Description: "the number of quotes to send (max 10)",
 		},
 	},
 }
@@ -52,7 +52,7 @@ var quoteBy = discordgo.ApplicationCommandOption{
 		{
 			Type:        discordgo.ApplicationCommandOptionInteger,
 			Name:        "amount",
-			Description: "the number of quotes to send (max 20)",
+			Description: "the number of quotes to send (max 10)",
 		},
 	},
 }
