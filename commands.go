@@ -70,7 +70,7 @@ var quoteSlashCommands = discordgo.ApplicationCommand{
 
 var quoteThisMessageCommand = discordgo.ApplicationCommand{
 	Type: discordgo.MessageApplicationCommand,
-	Name: "quote-this",
+	Name: "Quote This",
 }
 
 var allCommands = []*discordgo.ApplicationCommand{

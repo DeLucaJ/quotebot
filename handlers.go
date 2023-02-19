@@ -107,14 +107,20 @@ func clampAmount(amount int) int {
 	}
 }
 
-func quoteThisCommandHandler(_ data.Manager, session *discordgo.Session, icEvent *discordgo.InteractionCreate) {
-	// construct new quote from event data
-	quote := data.Quote{}
+func quoteThisCommandHandler(manager data.Manager, session *discordgo.Session, icEvent *discordgo.InteractionCreate) {
+	messageID := icEvent.ApplicationCommandData().TargetID
+	message, err := session.ChannelMessage(icEvent.ChannelID, messageID)
+	if err != nil {
+		log.Panicln("Failed to find message")
+	}
 
-	// filler
-	response := quoteThisMessageResponse(quote)
+	log.Println(message.Content)
 
-	err := session.InteractionRespond(icEvent.Interaction, &response)
+	quote := manager.AddQuote(message.Content, *message.Author, *icEvent.Interaction.Member.User, icEvent.Interaction.GuildID)
+
+	response := singleQuoteResponse(session, quote)
+
+	err = session.InteractionRespond(icEvent.Interaction, &response)
 	if err != nil {
 		log.Panicf("Unable to send response: %v", err)
 	}

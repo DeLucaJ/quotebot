@@ -35,15 +35,6 @@ func singleQuoteResponse(session *discordgo.Session, quote data.Quote) discordgo
 	}
 }
 
-func quoteThisMessageResponse(_ data.Quote) discordgo.InteractionResponse {
-	return discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseModal,
-		Data: &discordgo.InteractionResponseData{
-			Content: "This command is not implemented yet, please be patient",
-		},
-	}
-}
-
 func quoteToEmbed(session *discordgo.Session, quote data.Quote) *discordgo.MessageEmbed {
 	footer := discordgo.MessageEmbedFooter{
 		Text: fmt.Sprintf("Submitted by %s", quote.Submitter.Name),
