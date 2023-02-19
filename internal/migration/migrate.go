@@ -82,7 +82,9 @@ func AttemptMigrateLegacyQuotes(manager data.Manager, session *discordgo.Session
 
 	// loop through all old quotes and process them
 	for _, legacyQuote := range legacyQuotes {
-		legacyToModern(manager, migrateMap, legacyQuote, dataGuild)
+		if _, ok := migrateMap[legacyQuote.Speaker]; ok {
+			legacyToModern(manager, migrateMap, legacyQuote, dataGuild)
+		}
 	}
 
 	for _, channel := range event.Guild.Channels {
