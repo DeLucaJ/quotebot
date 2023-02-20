@@ -69,15 +69,15 @@ func quoteToEmbed(session *discordgo.Session, quote data.Quote) *discordgo.Messa
 		Text: fmt.Sprintf("Submitted by %s", quote.Submitter.Name),
 	}
 
-	speakerInfo, _ := session.GuildMember(quote.Guild.DiscordID, quote.Speaker.DiscordID)
+	speakerInfo, _ := session.User(quote.Speaker.DiscordID)
 
 	thumbnail := discordgo.MessageEmbedThumbnail{
-		URL: speakerInfo.User.AvatarURL(""),
+		URL: speakerInfo.AvatarURL(""),
 	}
 
 	embed := discordgo.MessageEmbed{
 		Type:        discordgo.EmbedTypeRich,
-		Color:       speakerInfo.User.AccentColor,
+		Color:       speakerInfo.AccentColor,
 		Title:       fmt.Sprintf("%s", quote.Speaker.Name),
 		Description: fmt.Sprintf("\"%s\"", quote.Content),
 		Footer:      &footer,
