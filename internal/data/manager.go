@@ -37,10 +37,10 @@ func Start(dsn string) Manager {
 	}
 
 	// Initialize the Database
-	err = db.AutoMigrate(&Guild{}, &User{}, &Quote{})
-	if err != nil {
-		log.Println("Error creating Database: " + err.Error())
-	}
+	//err = db.AutoMigrate(&Guild{}, &User{}, &Quote{})
+	//if err != nil {
+	//	log.Println("Error creating Database: " + err.Error())
+	//}
 
 	// initializes the singleton Manager
 	return Manager{
